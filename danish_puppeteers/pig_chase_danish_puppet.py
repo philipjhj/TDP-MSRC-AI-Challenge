@@ -116,8 +116,8 @@ def agent_factory(name, role, clients, max_epochs,
             while action is None:
                 action = agent.act(state, reward, agent_done, is_training=True)
 
-                # 'jump' or action 6 is set to wait
-                if action == 6:
+                # 'wait'
+                if action == DanishPuppet.ACTIONS.index("wait"):
                     action = None
                     sleep(4e-3)
                     state = env.state
@@ -165,7 +165,7 @@ if __name__ == '__main__':
                             help='Minecraft clients endpoints (ip(:port)?)+')
 
     # Manual overwrite!
-    manual = True
+    manual = False
 
     args = arg_parser.parse_args()
 

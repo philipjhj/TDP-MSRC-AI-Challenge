@@ -49,17 +49,50 @@ class EntityPosition:
 
 
 class Plan:
-    def __init__(self, target, target_position, utility, path):
+    Exit = "Exit"
+    PigCatch = "PigCatch"
+
+    def __init__(self, target, x, z, utility, path):
         self.target = target
-        self.target_position = target_position
+        self.x = x
+        self.z = z
         self.utility = utility
         self.path = path
 
+    def __getitem__(self, item):
+        return self.path[item]
+
+    def __len__(self):
+        return len(self.path)
+
     def __str__(self):
         return "Plan({}, ({}, {}), {})".format(self.target,
-                                               self.target_position[0],
-                                               self.target_position[1],
+                                               self.x,
+                                               self.z,
                                                self.utility)
+
+
+class Neighbour:
+    def __init__(self, x, z, direction, action):
+        self.x = x
+        self.z = z
+        self.direction = direction
+        self.action = action
+
+    def __field_list(self):
+        return [self.x,
+                self.z,
+                self.direction,
+                self.action]
+
+    def __getitem__(self, item):
+        return self.__field_list()[item]
+
+    def __len__(self):
+        return 4
+
+    def __str__(self):
+        return "Neighbour{}".format(tuple(self.__field_list()))
 
 
 class DanishPuppet(AStarAgent):
@@ -69,9 +102,9 @@ class DanishPuppet(AStarAgent):
                'move -1',  # 3
                "strafe 1",  # 4
                "strafe -1",  # 5
-               'jump 1'  # 6 (wait)
+               "jump 1",  # 6
+               'wait'  # 7
                ]
-    Neighbour = namedtuple('Neighbour', ['cost', 'x', 'z', 'direction', 'action'])
     Position = namedtuple("Position", "x, z")
     KeysMapping = {'L': ACTIONS.index('turn -1'),
                    'l': ACTIONS.index('turn -1'),
@@ -97,7 +130,10 @@ class DanishPuppet(AStarAgent):
                    'e': ACTIONS.index('turn 1'),
                    'E': ACTIONS.index('turn 1'),
                    # Jump
-                   ' ': ACTIONS.index('jump 1')
+                   ' ': ACTIONS.index('jump 1'),
+                   # No-op
+                   "n": ACTIONS.index("wait"),
+                   "N": ACTIONS.index("wait"),
                    }
     EntityNames = ["Agent_1", "Agent_2", "Pig"]
     PigCatchPrize = 25
@@ -113,8 +149,10 @@ class DanishPuppet(AStarAgent):
         # New fields
         self._entities = None
         self.manual = False
+        self.waiting_for_pig = False
 
-    def parse_positions(self, state):
+    @staticmethod
+    def parse_positions(state):
         entity_positions = dict()
 
         # Go through rows and columns
@@ -140,25 +178,63 @@ class DanishPuppet(AStarAgent):
             offset = 1 if len(path) == 1 else 2
             if any([self.matches(target, path[-1]) for target in exits]):
                 final_position = path[-1]
-                plan = Plan(target="Exit",
-                            target_position=(final_position.x, final_position.z),
+                plan = Plan(target=Plan.Exit,
+                            x=final_position.x,
+                            z=final_position.z,
                             utility=DanishPuppet.ExitPrice - len(path) + offset,
                             path=path)
                 plans.append(plan)
             if any([self.matches(target, path[-1]) for target in pig_neighbours]):
                 final_position = path[-1]
-                plan = Plan(target="PigCatch",
-                            target_position=(final_position.x, final_position.z),
+                plan = Plan(target=Plan.PigCatch,
+                            x=final_position.x,
+                            z=final_position.z,
                             utility=DanishPuppet.PigCatchPrize - len(path) + offset,
                             path=path)
                 plans.append(plan)
         plans = sorted(plans, key=lambda plan: -plan.utility)
         return plans
 
+    @staticmethod
+    def direction_towards_position(own_position, other_position):
+        x_diff = other_position.x - own_position.x
+        z_diff = other_position.z - own_position.z
+
+        if abs(x_diff) > abs(z_diff):
+            if x_diff < 0:
+                return 4
+            else:
+                return 1
+        else:
+            if z_diff < 0:
+                return 0
+            else:
+                return 3
+
+    def directional_wait_action(self, entity, other_position):
+        # Determine direction
+        direction = self.direction_towards_position(entity, other_position)
+
+        # Determine action
+        direction_diff = direction - entity.direction
+        while direction_diff < -2:
+            direction_diff += 4
+        while direction_diff > 2:
+            direction_diff -= 4
+        if direction_diff < 0:
+            return DanishPuppet.ACTIONS.index('turn -1')
+        elif direction_diff > 0:
+            return DanishPuppet.ACTIONS.index('turn 1')
+        else:
+            return DanishPuppet.ACTIONS.index('jump 1')
+
     def act(self, state, reward, done, is_training=False):
 
         # TODO: Strafe and possibly the ability to move backwards is not nessesarily in the ASTAR and BFS algorithms
         #   TODO: It all depends on the neighbors-method
+
+        ###############################################################################
+        # Get information from environment
 
         if done:
             self._action_list = []
@@ -186,11 +262,6 @@ class DanishPuppet(AStarAgent):
                 # print(item)
                 self._entities[item['name']].update(item)
 
-        print("")
-        for item in self._entities.values():
-            print(item)
-        print("")
-
         # Get Details of our agent
         me = [(col_nr, row_nr)
               for row_nr, row in enumerate(state)
@@ -202,11 +273,11 @@ class DanishPuppet(AStarAgent):
         yaw = int(me_details['yaw'])
         direction = ((((yaw - 45) % 360) // 90) - 1) % 4  # convert Minecraft yaw to 0=north, 1=east etc.
 
-        #####
+        ###############################################################################
         # Compute possible plans for each player plans
 
         # Exist positions
-        exits = [DanishPuppet.Neighbour(1, 1, 4, 0, ""), DanishPuppet.Neighbour(1, 7, 4, 0, "")]
+        exits = [Neighbour(x=1, z=4, direction=0, action=""), Neighbour(x=7, z=4, direction=0, action="")]
 
         # Get pig position
         pig_node = DanishPuppet.Position(self._entities["Pig"].x, self._entities["Pig"].z)
@@ -218,42 +289,67 @@ class DanishPuppet(AStarAgent):
             if "grass" in state[new_position[0], new_position[1]]:
                 pig_neighbours.append(DanishPuppet.Position(*new_position))
 
+        # All target positions
+        targets = pig_neighbours + exits + \
+                  [Neighbour(x=self._entities["Agent_2"].x,
+                             z=self._entities["Agent_2"].z,
+                             direction=direction,
+                             action="")]
+
+        # Find own paths
+        start = Neighbour(x=self._entities["Agent_2"].x,
+                          z=self._entities["Agent_2"].z,
+                          direction=direction,
+                          action="")
+        own_paths = self._astar_multi_search(start=start,
+                                             goals=targets,
+                                             state=state)[0]
+        own_plans = self.paths_to_plans(own_paths, exits, pig_neighbours)
+
+        # Find challengers paths
+        start = Neighbour(x=self._entities["Agent_1"].x,
+                          z=self._entities["Agent_1"].z,
+                          direction=direction,
+                          action="")
+        challengers_paths = self._astar_multi_search(start=start,
+                                                     goals=targets,
+                                                     state=state)[0]
+        challengers_plans = self.paths_to_plans(challengers_paths, exits, pig_neighbours)
+
+        ###############################################################################
+        # If pig is not in a useful place - wait
+
+        if len(pig_neighbours) > 2:
+            if not self.waiting_for_pig:
+                print("Waiting for pig ...")
+                self.waiting_for_pig = True
+            return DanishPuppet.ACTIONS.index("wait")
+        self.waiting_for_pig = False
+
+        ###############################################################################
+        # Prints
+
+        print("\n---------------------------\n")
+        for item in self._entities.values():
+            print(item)
+        print("")
+
         print("Pig neighbours:")
         for neighbour in pig_neighbours:
             print("   {}".format(neighbour))
         print("")
 
-        # All target positions
-        targets = pig_neighbours + exits + \
-                  [DanishPuppet.Neighbour(1, self._entities["Agent_2"].x, self._entities["Agent_2"].z, direction, "")]
-
-        # Find own paths
-        start = DanishPuppet.Neighbour(1, self._entities["Agent_2"].x, self._entities["Agent_2"].z, direction, "")
-        own_paths = self._astar_multi_search(start=start,
-                                             goals=targets,
-                                             state=state)[0]
-
-        # Find challengers paths
-        start = DanishPuppet.Neighbour(1, self._entities["Agent_1"].x, self._entities["Agent_1"].z, direction, "")
-        challengers_paths = self._astar_multi_search(start=start,
-                                                     goals=targets,
-                                                     state=state)[0]
-
         print("Own {} plans:".format(len(own_paths)))
-        for plan in self.paths_to_plans(own_paths, exits, pig_neighbours):
+        for plan in own_plans:
             print("   {}".format(plan))
         print("Challenger {} plans:".format(len(challengers_paths)))
-        for plan in self.paths_to_plans(challengers_paths, exits, pig_neighbours):
+        for plan in challengers_plans:
             print("   {}".format(plan))
+        del own_paths
+        del challengers_paths
 
-        target = [(col_nr, row_nr)
-                  for row_nr, row in enumerate(state)
-                  for col_nr, cell in enumerate(row)
-                  if self._target in cell]
-
-        # Get agent and target nodes
-        me = DanishPuppet.Neighbour(1, me[0][0], me[0][1], direction, "")
-        target = DanishPuppet.Neighbour(1, target[0][0], target[0][1], 0, "")
+        ###############################################################################
+        # Manual overwrite
 
         # Check if manual control is wanted
         if self.manual:
@@ -262,6 +358,67 @@ class DanishPuppet(AStarAgent):
                 if choice in DanishPuppet.KeysMapping:
                     print("   Choice {} translated to {}".format(choice, DanishPuppet.KeysMapping[choice]))
                     return DanishPuppet.KeysMapping[choice]
+
+        ###############################################################################
+        # Pig is catchable
+
+        # Strategies are:
+        # 1: Random-walk idiot
+        # 2: Naive Cooperative
+        # 3: Optimal cooperative
+        # 4: Douche
+        challenger_strategy = 2
+
+        # If challenger is an idiot or a douche - backstab him!
+        if challenger_strategy == 1 or challenger_strategy == 4:
+            # Exit plan
+            plan = sorted([plan for plan in own_plans if plan.target == Plan.Exit],
+                          key=lambda plan: -plan.utility)[0]
+
+            # Return next action (0th element is current position)
+            action = plan[1].action
+            return DanishPuppet.ACTIONS.index(action)
+
+        # If challenger is naive cooperative - go to the pig on the side farthest from him!
+        elif challenger_strategy == 2:
+            # Pig plans for both agents
+            own_pig_plans = [plan for plan in own_plans if plan.target == Plan.PigCatch]
+            challenger_pig_plans = [plan for plan in challengers_plans if plan.target == Plan.PigCatch]
+
+            # Find shortest plan from challenger
+            challenger_pig_plan = sorted(challenger_pig_plans, key=lambda plan: -plan.utility)[0]
+
+            # Find remaining spot for own agent
+            own_pig_plan = next((plan for plan in own_pig_plans
+                                 if not self.matches(plan, challenger_pig_plan)))
+
+            # Check if already at pig
+            if len(own_pig_plan) < 2:
+                print("Waiting for challenger to help with pig ...")
+                return self.directional_wait_action(entity=self._entities["Agent_2"],
+                                                    other_position=self._entities["Agent_1"])
+
+            # Return next action (0th element is current position)
+            action = own_pig_plan[1].action
+            return DanishPuppet.ACTIONS.index(action)
+
+        ###############################################################################
+        # Original code
+
+        target = [(col_nr, row_nr)
+                  for row_nr, row in enumerate(state)
+                  for col_nr, cell in enumerate(row)
+                  if self._target in cell]
+
+        # Get agent and target nodes
+        me = Neighbour(x=me[0][0],
+                       z=me[0][1],
+                       direction=direction,
+                       action="")
+        target = Neighbour(x=target[0][0],
+                           z=target[0][1],
+                           direction=0,
+                           action="")
 
         # If distance to the pig is one, just turn and wait
         if self.heuristic(me, target) == 1:
@@ -284,31 +441,75 @@ class DanishPuppet(AStarAgent):
         return DanishPuppet.ACTIONS.index("turn 1")  # substitutes for a no-op command
 
     def neighbors(self, pos, state=None):
+        # State information
         state_width = state.shape[1]
         state_height = state.shape[0]
+
+        # Direction integers
         dir_north, dir_east, dir_south, dir_west = range(4)
+
+        # Initialize list of neighbours
         neighbors = []
-        inc_x = lambda x, dir, delta: x + delta if dir == dir_east else x - delta if dir == dir_west else x
-        inc_z = lambda z, dir, delta: z + delta if dir == dir_south else z - delta if dir == dir_north else z
-        # add a neighbour for each potential action; prune out the disallowed states afterwards
+
+        # Functions for incrementing position based on direction and sign of move
+        move_inc_x = lambda x, dir, delta: x + delta if dir == dir_east else x - delta if dir == dir_west else x
+        move_inc_z = lambda z, dir, delta: z + delta if dir == dir_south else z - delta if dir == dir_north else z
+
+        # Functions for incrementing position based on direction and sign of strafe
+        strafe_inc_x = lambda x, dir, delta: x + delta if dir == dir_north else x - delta if dir == dir_south else x
+        strafe_inc_z = lambda z, dir, delta: z + delta if dir == dir_east else z - delta if dir == dir_west else z
+
+        # Add a neighbour for each potential action; prune out the disallowed states afterwards
         for action in DanishPuppet.ACTIONS:
+
+            # Turning actions
             if action.startswith("turn"):
-                neighbors.append(
-                    DanishPuppet.Neighbour(1, pos.x, pos.z, (pos.direction + int(action.split(' ')[1])) % 4, action))
-            if action.startswith("move "):  # note the space to distinguish from movemnorth etc
+                new_direction = (pos.direction + int(action.split(' ')[1])) % 4
+                new_state = Neighbour(x=pos.x,
+                                      z=pos.z,
+                                      direction=new_direction,
+                                      action=action)
+                neighbors.append(new_state)
+
+            # Moving actions
+            if action.startswith("move "):  # Note the space to distinguish from movemnorth etc
                 sign = int(action.split(' ')[1])
-                weight = 1 if sign == 1 else 1.5
                 neighbors.append(
-                    DanishPuppet.Neighbour(weight, inc_x(pos.x, pos.direction, sign), inc_z(pos.z, pos.direction, sign),
-                                           pos.direction, action))
+                    Neighbour(x=move_inc_x(pos.x, pos.direction, sign),
+                              z=move_inc_z(pos.z, pos.direction, sign),
+                              direction=pos.direction,
+                              action=action))
+
+            # Strafing actions
+            if action.startswith("strafe "):
+                sign = int(action.split(' ')[1])
+                neighbors.append(
+                    Neighbour(x=strafe_inc_x(pos.x, pos.direction, sign),
+                              z=strafe_inc_z(pos.z, pos.direction, sign),
+                              direction=pos.direction,
+                              action=action))
+
+            # Abstract actions
             if action == "movenorth":
-                neighbors.append(DanishPuppet.Neighbour(1, pos.x, pos.z - 1, pos.direction, action))
+                neighbors.append(Neighbour(x=pos.x,
+                                           z=pos.z - 1,
+                                           direction=pos.direction,
+                                           action=action))
             elif action == "moveeast":
-                neighbors.append(DanishPuppet.Neighbour(1, pos.x + 1, pos.z, pos.direction, action))
+                neighbors.append(Neighbour(x=pos.x + 1,
+                                           z=pos.z,
+                                           direction=pos.direction,
+                                           action=action))
             elif action == "movesouth":
-                neighbors.append(DanishPuppet.Neighbour(1, pos.x, pos.z + 1, pos.direction, action))
+                neighbors.append(Neighbour(x=pos.x,
+                                           z=pos.z + 1,
+                                           direction=pos.direction,
+                                           action=action))
             elif action == "movewest":
-                neighbors.append(DanishPuppet.Neighbour(1, pos.x - 1, pos.z, pos.direction, action))
+                neighbors.append(Neighbour(x=pos.x - 1,
+                                           z=pos.z,
+                                           direction=pos.direction,
+                                           action=action))
 
         # now prune:
         valid_neighbours = [n for n in neighbors if
