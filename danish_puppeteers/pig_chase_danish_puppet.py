@@ -47,16 +47,19 @@ EPOCH_SIZE = 100
 
 
 def agent_factory(name, role, clients, max_epochs,
-                  logdir, visualizer):
+                  logdir, visualizer, manual=False):
 
     assert len(clients) >= 2, 'Not enough clients (need at least 2)'
     clients = parse_clients_args(clients)
 
     builder = PigChaseSymbolicStateBuilder()
-    env = PigChaseEnvironment(clients, builder, role=role,
+    env = PigChaseEnvironment(clients, builder,
+                              actions=DanishPuppet.ACTIONS,
+                              role=role,
+                              human_speed=True,
                               randomize_positions=True)
 
-    # Challenger
+    # Challenger  (Agent_1)
     if role == 0:
         agent = PigChaseChallengeAgent(name)
 
@@ -85,9 +88,13 @@ def agent_factory(name, role, clients, max_epochs,
             # take a step
             obs, reward, agent_done = env.do(action)
 
-    # Our Agent
+    # Our Agent (Agent_2)
     else:
         agent = DanishPuppet(name=name, target=ENV_TARGET_NAMES[0])
+
+        # Manual overwrite!
+        if manual:
+            agent.manual = True
 
         obs = env.reset()
         reward = 0
@@ -147,6 +154,10 @@ if __name__ == '__main__':
     arg_parser.add_argument('clients', nargs='*',
                             default=['127.0.0.1:10000', '127.0.0.1:10001'],
                             help='Minecraft clients endpoints (ip(:port)?)+')
+
+    # Manual overwrite!
+    manual = True
+
     args = arg_parser.parse_args()
 
     logdir = BASELINES_FOLDER % (args.type, datetime.utcnow().isoformat())
@@ -156,7 +167,7 @@ if __name__ == '__main__':
     else:
         visualizer = ConsoleVisualizer()
 
-    agents = [{'name': agent, 'role': role,
+    agents = [{'name': agent, 'role': role, 'manual': manual,
                'clients': args.clients, 'max_epochs': args.epochs,
                'logdir': logdir, 'visualizer': visualizer}
               for role, agent in enumerate(ENV_AGENT_NAMES)]

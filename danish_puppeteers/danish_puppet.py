@@ -1,19 +1,85 @@
 from __future__ import division
 
-from collections import namedtuple
+from collections import deque
+from collections import namedtuple, OrderedDict
+from heapq import heapify, heappop, heappush
 
 import numpy as np
-from common import ENV_ACTIONS
-from malmopy.agent import AStarAgent
 from six.moves import range
+
+from malmopy.agent import AStarAgent
 
 P_FOCUSED = .75
 CELL_WIDTH = 33
 
 
+class EntityPosition:
+    def __init__(self, unparsed_info):
+        """
+        Parses information from the Minecraft API to an object, which is easy to work with. 
+        :param dict unparsed_info: 
+        """
+
+        self.name = unparsed_info['name']
+        self.direction = self.find_direction(unparsed_info['yaw'])
+        self.z = unparsed_info['z']
+        self.x = unparsed_info['x']
+
+    def _angle_float(self, angle):
+        return ((angle % 360) // 90) - 1
+
+    def find_direction(self, angle):
+        angle = self._angle_float(angle - 45)
+        return int(angle % 4)
+
+    def update(self, unparsed_info):
+        self.name = unparsed_info['name']
+        self.z = unparsed_info['z']
+        self.x = unparsed_info['x']
+
+        # Ensure consistency in angles
+        self.direction = self.find_direction(unparsed_info['yaw'])
+
+    def __str__(self):
+        return "{: >16s}(x={:d}, y={:d}, direction={})".format(self.name + "_Position",
+                                                               self.x,
+                                                               self.z,
+                                                               self.direction)
+
+
+class Plan:
+    def __init__(self, target, target_position, utility, path):
+        self.target = target
+        self.target_position = target_position
+        self.utility = utility
+        self.path = path
+
+    def __str__(self):
+        return "Plan({}, ({}, {}), {})".format(self.target,
+                                               self.target_position[0],
+                                               self.target_position[1],
+                                               self.utility)
+
+
 class DanishPuppet(AStarAgent):
-    ACTIONS = ENV_ACTIONS
+    ACTIONS = ["move 1", "turn -1", "turn 1", 'move -1']
     Neighbour = namedtuple('Neighbour', ['cost', 'x', 'z', 'direction', 'action'])
+    Position = namedtuple("Position", "x, z")
+    KeysMapping = {'L': ACTIONS.index('turn -1'),
+                   'l': ACTIONS.index('turn -1'),
+                   'R': ACTIONS.index('turn 1'),
+                   'r': ACTIONS.index('turn 1'),
+                   'U': ACTIONS.index('move 1'),
+                   'u': ACTIONS.index('move 1'),
+                   'F': ACTIONS.index('move 1'),
+                   'f': ACTIONS.index('move 1'),
+                   'D': ACTIONS.index('move -1'),
+                   'd': ACTIONS.index('move -1'),
+                   'B': ACTIONS.index('move -1'),
+                   'b': ACTIONS.index('move -1')}
+    EntityNames = ["Agent_1", "Agent_2", "Pig"]
+    PigCatchPrize = 25
+    ExitPrice = 5
 
     def __init__(self, name, target, visualizer=None):
         super(DanishPuppet, self).__init__(name, len(DanishPuppet.ACTIONS),
@@ -21,6 +87,50 @@ class DanishPuppet(AStarAgent):
         self._target = str(target)
         self._previous_target_pos = None
         self._action_list = []
+
+        # New fields
+        self._entities = None
+        self.manual = False
+
+    def parse_positions(self, state):
+        entity_positions = dict()
+
+        # Go through rows and columns
+        for row_nr, row in enumerate(state):
+            for col_nr, cell in enumerate(row):
+
+                # Go through entities that still have not been found
+                for entity_nr, entity in enumerate(DanishPuppet.EntityNames):
+
+                    # Check if found
+                    if entity in cell:
+                        entity_positions[entity] = (abs(col_nr), abs(row_nr))
+
+                    # Check if all found
+                    if len(entity_positions) == 3:
+                        return entity_positions
+
+        return entity_positions
+
+    def paths_to_plans(self, paths, exits, pig_neighbours):
+        plans = []
+        for path in paths:
+            if any([self.matches(target, path[-1]) for target in exits]):
+                final_position = path[-1]
+                plan = Plan(target="Exit",
+                            target_position=(final_position.x, final_position.z),
+                            utility=DanishPuppet.ExitPrice - len(path) + 2,
+                            path=path)
+                plans.append(plan)
+            if any([self.matches(target, path[-1]) for target in pig_neighbours]):
+                final_position = path[-1]
+                plan = Plan(target="PigCatch",
+                            target_position=(final_position.x, final_position.z),
+                            utility=DanishPuppet.PigCatchPrize - len(path) + 2,
+                            path=path)
+                plans.append(plan)
+        plans = sorted(plans, key=lambda plan: -plan.utility)
+        return plans
 
     def act(self, state, reward, done, is_training=False):
         if done:
@@ -32,15 +142,86 @@ class DanishPuppet(AStarAgent):
 
         entities = state[1]
         state = state[0]
-        me = [(j, i) for i, v in enumerate(state) for j, k in enumerate(v) if self.name in k]
+
+        # Parse positions from grid
+        positions = self.parse_positions(state)
+        for idx, entity in enumerate(entities):
+            entity['x'] = positions[entity['name']][0]
+            entity['z'] = positions[entity['name']][1]
+
+        # Initialize entities information
+        if self._entities is None:
+            self._entities = OrderedDict((name, None) for name in DanishPuppet.EntityNames)
+            for item in entities:
+                self._entities[item['name']] = EntityPosition(item)
+        else:
+            for item in entities:
+                # print(item)
+                self._entities[item['name']].update(item)
+
+        print("")
+        for item in self._entities.values():
+            print(item)
+        print("")
+
+        # Get Details of our agent
+        me = [(col_nr, row_nr)
+              for row_nr, row in enumerate(state)
+              for col_nr, cell in enumerate(row)
+              if self.name in cell]
         me_details = [e for e in entities if e['name'] == self.name][0]
+
+        # Convert angle to direction
         yaw = int(me_details['yaw'])
         direction = ((((yaw - 45) % 360) // 90) - 1) % 4  # convert Minecraft yaw to 0=north, 1=east etc.
-        target = [(j, i) for i, v in enumerate(state) for j, k in enumerate(v) if self._target in k]
+
+        ###
+        # Test BFS
+        # Exist positions
+        exits = [DanishPuppet.Neighbour(1, 1, 4, 0, ""), DanishPuppet.Neighbour(1, 7, 4, 0, "")]
+
+        # Get neighbours of pig
+        pig_node = DanishPuppet.Neighbour(1, self._entities["Pig"].x, self._entities["Pig"].z, 0, "")
+        pig_neighbours = self.neighbors(pig_node, state)
+
+        # All target positions
+        targets = pig_neighbours + exits
+
+        # Find own paths
+        start = DanishPuppet.Neighbour(1, self._entities["Agent_2"].x, self._entities["Agent_2"].z, direction, "")
+        own_paths = self._astar_multi_search(start=start,
+                                             goals=targets,
+                                             state=state)[0]
+
+        # Find challengers paths
+        start = DanishPuppet.Neighbour(1, self._entities["Agent_1"].x, self._entities["Agent_1"].z, direction, "")
+        challengers_paths = self._astar_multi_search(start=start,
+                                                     goals=targets,
+                                                     state=state)[0]
+
+        print("Own {} plans:".format(len(own_paths)))
+        for plan in self.paths_to_plans(own_paths, exits, pig_neighbours):
+            print("   {}".format(plan))
+        print("Challenger {} plans:".format(len(challengers_paths)))
+        for plan in self.paths_to_plans(challengers_paths, exits, pig_neighbours):
+            print("   {}".format(plan))
+
+        target = [(col_nr, row_nr)
+                  for row_nr, row in enumerate(state)
+                  for col_nr, cell in enumerate(row)
+                  if self._target in cell]
 
         # Get agent and target nodes
         me = DanishPuppet.Neighbour(1, me[0][0], me[0][1], direction, "")
         target = DanishPuppet.Neighbour(1, target[0][0], target[0][1], 0, "")
+
+        # Check if manual control is wanted
+        if self.manual:
+            while True:
+                choice = raw_input("\nType action (L, R, F, B): ")
+                if choice in DanishPuppet.KeysMapping:
+                    print("   Choice {} translated to {}".format(choice, DanishPuppet.KeysMapping[choice]))
+                    return DanishPuppet.KeysMapping[choice]
 
         # If distance to the pig is one, just turn and wait
         if self.heuristic(me, target) == 1:
@@ -103,3 +284,70 @@ class DanishPuppet(AStarAgent):
     def matches(self, a, b):
         return a.x == b.x and a.z == b.z  # don't worry about dir and action
 
+    def _astar_multi_search(self, start, goals, **kwargs):
+        """
+        Searches the entire graph for the shortest path from one location to any of a list of goals. 
+        :param start: 
+        :param list goals: 
+        :param kwargs: 
+        :return: 
+        """
+        # Ensure uniqueness of goal-positions
+        goals_remaining = list(set(DanishPuppet.Position(item.x, item.z) for item in goals))
+
+        # Previous node, cost so far and goal-nodes
+        came_from, cost_so_far = {}, {}
+        goal_nodes = []
+
+        # Priority queue for holding future nodes
+        explorer = []
+        heapify(explorer)
+
+        # Initialize start-state
+        heappush(explorer, (0, start))
+        came_from[start] = None
+        cost_so_far[start] = 0
+        current = None
+
+        # Keep fetching nodes from queue
+        while len(explorer) > 0:
+            _, current = heappop(explorer)
+
+            # Check if any goal is reached
+            for idx, goal in enumerate(goals_remaining):
+                if self.matches(current, goal):
+                    goal_nodes.append(current)
+                    del goals_remaining[idx]
+
+            if not goals_remaining:
+                break
+
+            # Go through neighbours
+            for nb in self.neighbors(current, **kwargs):
+                # Compute new cost
+                cost = nb.cost if hasattr(nb, "cost") else 1
+                new_cost = cost_so_far[current] + cost
+
+                # Check if node has never been seen before or if cost is lower than
+                # previously found path (shouldn't happen)
+                if nb not in cost_so_far or new_cost < cost_so_far[nb]:
+                    cost_so_far[nb] = new_cost
+
+                    # Find minimum heuristic
+                    heuristic = min([self.heuristic(goal, nb, **kwargs) for goal in goals_remaining])
+
+                    # Add to priority queue
+                    priority = new_cost + heuristic
+                    heappush(explorer, (priority, nb))
+                    came_from[nb] = current
+
+        # Build paths
+        paths = []
+        for node in goal_nodes:
+            path = deque()
+            while node is not start:
+                path.appendleft(node)
+                node = came_from[node]
+            paths.append(path)
+
+        return paths, cost_so_far
