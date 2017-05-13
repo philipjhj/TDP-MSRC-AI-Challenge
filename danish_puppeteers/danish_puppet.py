@@ -14,6 +14,20 @@ P_FOCUSED = .75
 CELL_WIDTH = 33
 
 
+# Print settings
+class Print:
+    iteration_line = True
+    map = True
+    positions = False
+    pig_neighbours = False
+    own_plans = False
+    challenger_plans = False
+    detailed_plans = False
+    feature_vector = False
+    expected_challenger_move = False
+    waiting_info = False
+
+
 class EntityPosition:
     def __init__(self, unparsed_info):
         """
@@ -462,9 +476,10 @@ class DanishPuppet(AStarAgent):
 
         if len(pig_neighbours) > 2:
             if not self.waiting_for_pig:
-                print("\n---------------------------\n")
-                print("Waiting for pig ...")
-                print(self.game_view(state))
+                if Print.waiting_info:
+                    print("\n---------------------------\n")
+                    print("Waiting for pig ...")
+                    print(self.game_view(state))
                 self.waiting_for_pig = True
             return DanishPuppet.ACTIONS.index("wait")
         self.waiting_for_pig = False
@@ -480,10 +495,11 @@ class DanishPuppet(AStarAgent):
         challenger_pig_plan = next(plan for plan in challengers_plans
                                    if plan.target == Plan.PigCatch and plan.plan_length() == challenger_pig_distance)
 
-        if challenger_pig_plan.plan_length() > 0:
-            print("Next expected move: {}".format(challenger_pig_plan[1].action))
-        else:
-            print("Next expected move: None")
+        if Print.expected_challenger_move:
+            if challenger_pig_plan.plan_length() > 0:
+                print("Next expected move: {}".format(challenger_pig_plan[1].action))
+            else:
+                print("Next expected move: None")
 
         # Exit distances
         own_exit_distance = min([plan.plan_length() for plan in own_plans
@@ -526,32 +542,42 @@ class DanishPuppet(AStarAgent):
         ###############################################################################
         # Prints
 
-        print("\n---------------------------\n")
+        if Print.iteration_line:
+            print("\n---------------------------\n")
 
-        print(self.game_view(state))
+        if Print.map:
+            print(self.game_view(state))
 
-        for item in self._entities.values():
-            print(item)
-        print("")
+        if Print.positions:
+            for item in self._entities.values():
+                print(item)
+            print("")
 
-        print("Pig neighbours:")
-        for neighbour in pig_neighbours:
-            print("   {}".format(neighbour))
-        print("")
+        if Print.pig_neighbours:
+            print("Pig neighbours:")
+            for neighbour in pig_neighbours:
+                print("   {}".format(neighbour))
+            print("")
 
-        print("Own {} plans:".format(len(own_paths)))
-        for plan in own_plans:
-            print("   {}".format(plan))
-            print("      {}".format(plan.path_print()))
-        print("Challenger {} plans:".format(len(challengers_paths)))
-        for plan in challengers_plans:
-            print("   {}".format(plan))
-            print("      {}".format(plan.path_print()))
+        if Print.own_plans:
+            print("Own {} plans:".format(len(own_paths)))
+            for plan in own_plans:
+                print("   {}".format(plan))
+                if Print.detailed_plans:
+                    print("      {}".format(plan.path_print()))
+
+        if Print.challenger_plans:
+            print("Challenger {} plans:".format(len(challengers_paths)))
+            for plan in challengers_plans:
+                print("   {}".format(plan))
+                if Print.detailed_plans:
+                    print("      {}".format(plan.path_print()))
         del own_paths
         del challengers_paths
 
-        print("\nFeature vector:")
-        print("   {}".format(features))
+        if Print.feature_vector:
+            print("\nFeature vector:")
+            print("   {}".format(features))
 
         ###############################################################################
         # Manual overwrite
@@ -599,7 +625,8 @@ class DanishPuppet(AStarAgent):
 
             # Check if already at pig
             if len(own_pig_plan) < 2:
-                print("Waiting for challenger to help with pig ...")
+                if Print.waiting_info:
+                    print("Waiting for challenger to help with pig ...")
                 return self.directional_wait_action(entity=self._entities["Agent_2"],
                                                     other_position=self._entities["Agent_1"])
 
