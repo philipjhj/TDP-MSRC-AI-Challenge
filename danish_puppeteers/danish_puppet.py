@@ -1,5 +1,6 @@
 from __future__ import division
 
+from Queue import Queue
 from collections import deque
 from collections import namedtuple, OrderedDict
 from itertools import product
@@ -13,9 +14,15 @@ from malmopy.agent import AStarAgent
 P_FOCUSED = .75
 CELL_WIDTH = 33
 
+MEMORY_SIZE = 10
+
 
 # Print settings
 class Print:
+    # Pre-game
+    history_length = True
+
+    # In iterations
     iteration_line = True
     map = True
     positions = False
@@ -24,8 +31,9 @@ class Print:
     challenger_plans = False
     detailed_plans = False
     feature_vector = False
+    feature_matrix = True
     expected_challenger_move = False
-    waiting_info = False
+    waiting_info = True
 
 
 class EntityPosition:
@@ -147,11 +155,7 @@ class FeatureHistory:
         self.features.append(features)
 
     def to_matrix(self):
-        return np.array(
-            [
-                self.features
-            ]
-        )
+        return np.array([feature.to_vector() for feature in self.features])
 
     def last_features(self):
         return self.features[-1]
@@ -281,6 +285,8 @@ class DanishPuppet(AStarAgent):
         self.waiting_for_pig = False
         self.game_features = None
         self.moves = -1
+        self.history_queue = Queue(maxsize=MEMORY_SIZE)
+        self.first_act_call = True
 
     @staticmethod
     def parse_positions(state):
@@ -384,11 +390,22 @@ class DanishPuppet(AStarAgent):
         # Get information from environment
 
         if done:
-            self._action_list = []
-            self._previous_target_pos = None
-            self.game_features = None
-            if not self.waiting_for_pig:
+            if self.first_act_call:
+                if self.game_features is not None:
+                    if self.history_queue.full():
+                        self.history_queue.get()
+                    self.history_queue.put(self.game_features)
+
+                if Print.history_length:
+                    print("\nLength of history: {}".format(self.history_queue.qsize()))
+
+                self._action_list = []
+                self._previous_target_pos = None
+                self.game_features = None
                 self.moves = -1
+            self.first_act_call = False
+        else:
+            self.first_act_call = True
 
         if state is None:
             return np.random.randint(0, self.nb_actions)
@@ -396,6 +413,9 @@ class DanishPuppet(AStarAgent):
         entities = state[1]
         state = state[0]
         self.moves += 1
+
+        if Print.iteration_line and not self.waiting_for_pig:
+            print("\n---------------------------\n")
 
         # Parse positions from grid
         positions = self.parse_positions(state)
@@ -477,9 +497,9 @@ class DanishPuppet(AStarAgent):
         if len(pig_neighbours) > 2:
             if not self.waiting_for_pig:
                 if Print.waiting_info:
-                    print("\n---------------------------\n")
                     print("Waiting for pig ...")
-                    print(self.game_view(state))
+                    if Print.map:
+                        print(self.game_view(state))
                 self.waiting_for_pig = True
             return DanishPuppet.ACTIONS.index("wait")
         self.waiting_for_pig = False
@@ -542,32 +562,27 @@ class DanishPuppet(AStarAgent):
         ###############################################################################
         # Prints
 
-        if Print.iteration_line:
-            print("\n---------------------------\n")
-
         if Print.map:
             print(self.game_view(state))
 
         if Print.positions:
             for item in self._entities.values():
                 print(item)
-            print("")
 
         if Print.pig_neighbours:
-            print("Pig neighbours:")
+            print("\nPig neighbours:")
             for neighbour in pig_neighbours:
                 print("   {}".format(neighbour))
-            print("")
 
         if Print.own_plans:
-            print("Own {} plans:".format(len(own_paths)))
+            print("\nOwn {} plans:".format(len(own_paths)))
             for plan in own_plans:
                 print("   {}".format(plan))
                 if Print.detailed_plans:
                     print("      {}".format(plan.path_print()))
 
         if Print.challenger_plans:
-            print("Challenger {} plans:".format(len(challengers_paths)))
+            print("\nChallenger {} plans:".format(len(challengers_paths)))
             for plan in challengers_plans:
                 print("   {}".format(plan))
                 if Print.detailed_plans:
@@ -578,6 +593,10 @@ class DanishPuppet(AStarAgent):
         if Print.feature_vector:
             print("\nFeature vector:")
             print("   {}".format(features))
+
+        if Print.feature_matrix:
+            print("\nFeature matrix:")
+            print(self.game_features.to_matrix())
 
         ###############################################################################
         # Manual overwrite
@@ -626,7 +645,7 @@ class DanishPuppet(AStarAgent):
             # Check if already at pig
             if len(own_pig_plan) < 2:
                 if Print.waiting_info:
-                    print("Waiting for challenger to help with pig ...")
+                    print("\nWaiting for challenger to help with pig ...")
                 return self.directional_wait_action(entity=self._entities["Agent_2"],
                                                     other_position=self._entities["Agent_1"])
 
