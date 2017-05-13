@@ -32,7 +32,7 @@ class Print:
     challenger_plans = False
     detailed_plans = False
     feature_vector = False
-    feature_matrix = False
+    feature_matrix = True
     expected_challenger_move = False
     challenger_strategy = False
     waiting_info = True
@@ -548,7 +548,7 @@ class DanishPuppet(AStarAgent):
         if len(pig_neighbours) > 2:
             if not self.waiting_for_pig:
                 if Print.waiting_info:
-                    print("Waiting for pig ...")
+                    print("\nWaiting for pig at {} ...".format(pig_node))
                     if Print.map:
                         print(self.map_view(state))
                 self.waiting_for_pig = True
@@ -587,7 +587,7 @@ class DanishPuppet(AStarAgent):
                                 own_exit_distance=own_exit_distance,
                                 delta_challenger_pig_distance=None,
                                 delta_challenger_exit_distance=None,
-                                compliance=None)
+                                compliance=1)
             self.game_features.update(features)
 
         # Otherwise compute deltas
@@ -685,26 +685,20 @@ class DanishPuppet(AStarAgent):
 
         # Strategies are:
         # 0: Initial round (no information)
-        # 1: Random-walk idiot
+        # 1: Random-walk Idiot
         # 2: Naive Cooperative
-        # 3: Optimal cooperative
+        # 3: Optimal Cooperative
         # 4: Douche
 
-        # If this is the first round, assume cooperative
-        if features.compliance is None:
-            challenger_strategy = 0
+        # Data on past
+        matrix = self.game_features.to_matrix()
+        compliances = matrix[:, 6]
 
-        # Otherwise inspect past behavior
+        # Base predicted strategy on compliance of challenger
+        if compliances.mean() < 0.5:
+            challenger_strategy = 1
         else:
-            # Data on past
-            matrix = self.game_features.to_matrix()
-            compliances = matrix[1:, 6]
-
-            # Base predicted strategy on compliance of challenger
-            if compliances.mean() < 0.5:
-                challenger_strategy = 1
-            else:
-                challenger_strategy = 2
+            challenger_strategy = 2
 
         ###############################################################################
         # Determine plan based on challengers strategy
