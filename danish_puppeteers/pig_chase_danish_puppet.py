@@ -109,7 +109,9 @@ def agent_factory(name, role, clients, max_epochs,
 
             # check if env needs reset
             if env.done:
-
+                agent.note_game_end(reward_sequence=viz_rewards,
+                                    state=state[0])
+                print("")
                 visualize_training(visualizer, step, viz_rewards)
                 viz_rewards = []
                 state = env.reset()

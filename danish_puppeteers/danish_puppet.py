@@ -3,7 +3,6 @@ from __future__ import division
 from Queue import Queue
 from collections import deque
 from collections import namedtuple, OrderedDict
-from itertools import product
 from heapq import heapify, heappop, heappush
 from time import time
 
@@ -37,6 +36,9 @@ class Print:
     expected_challenger_move = False
     challenger_strategy = False
     waiting_info = True
+
+    # Post game
+    game_summary = True
 
 
 class EntityPosition:
@@ -153,7 +155,7 @@ class Features:
         return self.to_vector()[:self.n_non_delta]
 
 
-class FeatureHistory:
+class FeatureSequence:
     def __init__(self):
         self.features = []
 
@@ -166,6 +168,20 @@ class FeatureHistory:
     def last_features(self):
         return self.features[-1]
 
+
+class GameSummary:
+    def __init__(self, feature_matrix, reward, prize, final_state, pig_is_caught):
+        self.feature_matrix = feature_matrix
+        self.reward = reward
+        self.prize = prize
+        self.final_state = final_state
+        self.pig_is_caught = pig_is_caught
+
+    def __str__(self):
+        return "GameSummary(reward={}, pig_is_caught={})".format(self.reward, self.pig_is_caught)
+
+    def __repr__(self):
+        return str(self)
 
 class Plan:
     Exit = "Exit"
@@ -326,7 +342,7 @@ class DanishPuppet(AStarAgent):
 
         return entity_positions
 
-    def game_view(self, state):
+    def map_view(self, state):
         string_rows = []
 
         for row in state:
@@ -408,6 +424,31 @@ class DanishPuppet(AStarAgent):
         else:
             return DanishPuppet.ACTIONS.index('jump 1')
 
+    def was_pig_caught(self, prize):
+        if prize > 20:
+            return True
+        return False
+
+    def note_game_end(self, reward_sequence, state):
+        if self.history_queue.full():
+            self.history_queue.get()
+
+        prize = int(max(reward_sequence))
+        reward = int(sum(reward_sequence))
+
+        game_summary = GameSummary(feature_matrix=self.game_features,
+                                   reward=reward,
+                                   prize=prize,
+                                   final_state=state,
+                                   pig_is_caught=self.was_pig_caught(prize=prize))
+
+        if Print.game_summary:
+            print("\nGame Summary:")
+            print("   {}".format(game_summary))
+            print("   From reward-sequence: {}".format(reward_sequence))
+
+        self.history_queue.put(game_summary)
+
     def act(self, state, reward, done, is_training=False):
 
         ###############################################################################
@@ -415,10 +456,6 @@ class DanishPuppet(AStarAgent):
 
         if done:
             if self.first_act_call:
-                if self.game_features is not None:
-                    if self.history_queue.full():
-                        self.history_queue.get()
-                    self.history_queue.put(self.game_features)
 
                 if Print.history_length:
                     print("\nLength of history: {}".format(self.history_queue.qsize()))
@@ -513,7 +550,7 @@ class DanishPuppet(AStarAgent):
                 if Print.waiting_info:
                     print("Waiting for pig ...")
                     if Print.map:
-                        print(self.game_view(state))
+                        print(self.map_view(state))
                 self.waiting_for_pig = True
             return DanishPuppet.ACTIONS.index("wait")
         self.waiting_for_pig = False
@@ -543,7 +580,7 @@ class DanishPuppet(AStarAgent):
 
         # Check if first iteration in game
         if self.game_features is None:
-            self.game_features = FeatureHistory()
+            self.game_features = FeatureSequence()
             features = Features(challenger_pig_distance=challenger_pig_distance,
                                 own_pig_distance=own_pig_distance,
                                 challenger_exit_distance=challenger_exit_distance,
@@ -592,7 +629,7 @@ class DanishPuppet(AStarAgent):
         # Prints
 
         if Print.map:
-            print(self.game_view(state))
+            print(self.map_view(state))
 
         if Print.positions:
             for item in self._entities.values():
