@@ -47,17 +47,113 @@ class EntityPosition:
                                                                self.z,
                                                                self.direction)
 
+    def __repr__(self):
+        return str(self)
+
+
+class Features:
+    def __init__(self, challenger_pig_distance, own_pig_distance, challenger_exit_distance, own_exit_distance,
+                 delta_challenger_pig_distance, delta_challenger_exit_distance, compliance):
+        # Distances
+        self.challenger_pig_distance = challenger_pig_distance
+        self.own_pig_distance = own_pig_distance
+        self.challenger_exit_distance = challenger_exit_distance
+        self.own_exit_distance = own_exit_distance
+
+        # Number of non-delta features
+        self.n_non_delta = 4
+
+        # Delta-distance
+        self.delta_challenger_pig_distance = delta_challenger_pig_distance
+        self.delta_challenger_exit_distance = delta_challenger_exit_distance
+
+        # Compliance
+        self.compliance = compliance
+
+    def compute_deltas(self, challenger_pig_distance, challenger_exit_distance):
+        delta_challenger_pig_distance = challenger_pig_distance - self.challenger_pig_distance
+        delta_challenger_exit_distance = challenger_exit_distance - self.challenger_exit_distance
+
+        # Compliance
+        if self.challenger_pig_distance == 0:
+            compliance = 1
+        else:
+            if delta_challenger_pig_distance < 0:
+                compliance = 1
+            else:
+                compliance = 0
+
+        return delta_challenger_pig_distance, delta_challenger_exit_distance, compliance
+
+    def to_list(self):
+        return [
+            self.challenger_pig_distance,
+            self.own_pig_distance,
+            self.challenger_exit_distance,
+            self.own_exit_distance,
+            self.delta_challenger_pig_distance,
+            self.delta_challenger_exit_distance,
+            self.compliance
+        ]
+
+    def to_named_list(self):
+        items = self.to_list()
+        names = [
+            "challenger_pig_distance",
+            "own_pig_distance",
+            "challenger_exit_distance",
+            "own_exit_distance",
+            "delta_challenger_pig_distance",
+            "delta_challenger_exit_distance",
+            "compliance",
+        ]
+        return list(zip(names, items))
+
+    def to_vector(self):
+        return np.array(
+            self.to_list()
+        )
+
+    def __str__(self):
+        string = ", ".join(["{}={}".format(name, item) for name, item in self.to_named_list()])
+        return "Features({})".format(string)
+
+    def __repr__(self):
+        return str(self)
+
+    def to_non_delta_vector(self):
+        return self.to_vector()[:self.n_non_delta]
+
+
+class FeatureHistory:
+    def __init__(self):
+        self.features = []
+
+    def update(self, features):
+        self.features.append(features)
+
+    def to_matrix(self):
+        return np.array(
+            [
+                self.features
+            ]
+        )
+
+    def last_features(self):
+        return self.features[-1]
+
 
 class Plan:
     Exit = "Exit"
     PigCatch = "PigCatch"
 
-    def __init__(self, target, x, z, utility, path):
+    def __init__(self, target, x, z, prize, path):
         self.target = target
         self.x = x
         self.z = z
-        self.utility = utility
         self.path = path
+
+        self.utility = prize - self.plan_length()
 
     def __getitem__(self, item):
         return self.path[item]
@@ -65,11 +161,27 @@ class Plan:
     def __len__(self):
         return len(self.path)
 
+    def plan_length(self):
+        if len(self) == 1:
+            return 0
+        else:
+            return len(self) - 1
+
+    def path_print(self):
+        if len(self) == 1:
+            return "[]"
+        else:
+            return str(list(self.path)[1:])
+
     def __str__(self):
-        return "Plan({}, ({}, {}), {})".format(self.target,
-                                               self.x,
-                                               self.z,
-                                               self.utility)
+        return "Plan({}, loc=({}, {}), utility={}, moves_left={})".format(self.target,
+                                                                          self.x,
+                                                                          self.z,
+                                                                          self.utility,
+                                                                          self.plan_length())
+
+    def __repr__(self):
+        return str(self)
 
 
 class Neighbour:
@@ -93,6 +205,9 @@ class Neighbour:
 
     def __str__(self):
         return "Neighbour{}".format(tuple(self.__field_list()))
+
+    def __repr__(self):
+        return str(self)
 
 
 class DanishPuppet(AStarAgent):
@@ -150,6 +265,8 @@ class DanishPuppet(AStarAgent):
         self._entities = None
         self.manual = False
         self.waiting_for_pig = False
+        self.game_features = None
+        self.moves = -1
 
     @staticmethod
     def parse_positions(state):
@@ -172,6 +289,25 @@ class DanishPuppet(AStarAgent):
 
         return entity_positions
 
+    def game_view(self, state):
+        string_rows = []
+
+        for row in state:
+            string_row1 = []
+            string_row2 = []
+            for cell in row:
+                if not "grass" in cell:
+                    string_row1.append("XXX")
+                    string_row2.append("XXX")
+                else:
+                    string_row1.append(("A" if "Agent_2" in cell else " ") + " " +
+                                       ("P" if "Pig" in cell else " "))
+                    string_row2.append(" " + ("C" if "Agent_1" in cell else " ") + " ")
+            string_rows.append("".join(string_row1))
+            string_rows.append("".join(string_row2))
+
+        return "\n".join(string_rows)
+
     def paths_to_plans(self, paths, exits, pig_neighbours):
         plans = []
         for path in paths:
@@ -181,15 +317,15 @@ class DanishPuppet(AStarAgent):
                 plan = Plan(target=Plan.Exit,
                             x=final_position.x,
                             z=final_position.z,
-                            utility=DanishPuppet.ExitPrice - len(path) + offset,
+                            prize=DanishPuppet.ExitPrice - self.moves,
                             path=path)
                 plans.append(plan)
-            if any([self.matches(target, path[-1]) for target in pig_neighbours]):
+            elif any([self.matches(target, path[-1]) for target in pig_neighbours]):
                 final_position = path[-1]
                 plan = Plan(target=Plan.PigCatch,
                             x=final_position.x,
                             z=final_position.z,
-                            utility=DanishPuppet.PigCatchPrize - len(path) + offset,
+                            prize=DanishPuppet.PigCatchPrize - self.moves,
                             path=path)
                 plans.append(plan)
         plans = sorted(plans, key=lambda plan: -plan.utility)
@@ -230,21 +366,22 @@ class DanishPuppet(AStarAgent):
 
     def act(self, state, reward, done, is_training=False):
 
-        # TODO: Strafe and possibly the ability to move backwards is not nessesarily in the ASTAR and BFS algorithms
-        #   TODO: It all depends on the neighbors-method
-
         ###############################################################################
         # Get information from environment
 
         if done:
             self._action_list = []
             self._previous_target_pos = None
+            self.game_features = None
+            if not self.waiting_for_pig:
+                self.moves = -1
 
         if state is None:
             return np.random.randint(0, self.nb_actions)
 
         entities = state[1]
         state = state[0]
+        self.moves += 1
 
         # Parse positions from grid
         positions = self.parse_positions(state)
@@ -274,7 +411,7 @@ class DanishPuppet(AStarAgent):
         direction = ((((yaw - 45) % 360) // 90) - 1) % 4  # convert Minecraft yaw to 0=north, 1=east etc.
 
         ###############################################################################
-        # Compute possible plans for each player plans
+        # Determine possible targets
 
         # Exist positions
         exits = [Neighbour(x=1, z=4, direction=0, action=""), Neighbour(x=7, z=4, direction=0, action="")]
@@ -296,6 +433,9 @@ class DanishPuppet(AStarAgent):
                              direction=direction,
                              action="")]
 
+        ###############################################################################
+        # Compute possible plans for each player plans
+
         # Find own paths
         start = Neighbour(x=self._entities["Agent_2"].x,
                           z=self._entities["Agent_2"].z,
@@ -313,7 +453,8 @@ class DanishPuppet(AStarAgent):
                           action="")
         challengers_paths = self._astar_multi_search(start=start,
                                                      goals=targets,
-                                                     state=state)[0]
+                                                     state=state,
+                                                     must_turn=True)[0]
         challengers_plans = self.paths_to_plans(challengers_paths, exits, pig_neighbours)
 
         ###############################################################################
@@ -321,15 +462,74 @@ class DanishPuppet(AStarAgent):
 
         if len(pig_neighbours) > 2:
             if not self.waiting_for_pig:
+                print("\n---------------------------\n")
                 print("Waiting for pig ...")
+                print(self.game_view(state))
                 self.waiting_for_pig = True
             return DanishPuppet.ACTIONS.index("wait")
         self.waiting_for_pig = False
 
         ###############################################################################
+        # Feature Extraction
+
+        # Pig distances
+        own_pig_distance = min([plan.plan_length() for plan in own_plans
+                                if plan.target == Plan.PigCatch])
+        challenger_pig_distance = min([plan.plan_length() for plan in challengers_plans
+                                       if plan.target == Plan.PigCatch])
+        challenger_pig_plan = next(plan for plan in challengers_plans
+                                   if plan.target == Plan.PigCatch and plan.plan_length() == challenger_pig_distance)
+
+        if challenger_pig_plan.plan_length() > 0:
+            print("Next expected move: {}".format(challenger_pig_plan[1].action))
+        else:
+            print("Next expected move: None")
+
+        # Exit distances
+        own_exit_distance = min([plan.plan_length() for plan in own_plans
+                                 if plan.target == Plan.Exit])
+        challenger_exit_distance = min([plan.plan_length() for plan in challengers_plans
+                                        if plan.target == Plan.Exit])
+
+        # Check if first iteration in game
+        if self.game_features is None:
+            self.game_features = FeatureHistory()
+            features = Features(challenger_pig_distance=challenger_pig_distance,
+                                own_pig_distance=own_pig_distance,
+                                challenger_exit_distance=challenger_exit_distance,
+                                own_exit_distance=own_exit_distance,
+                                delta_challenger_pig_distance=None,
+                                delta_challenger_exit_distance=None,
+                                compliance=None)
+            self.game_features.update(features)
+
+        # Otherwise compute deltas
+        else:
+            # Get last features and compute deltas
+            last_features = self.game_features.last_features()  # type: Features
+            deltas = last_features.compute_deltas(challenger_pig_distance=challenger_pig_distance,
+                                                  challenger_exit_distance=challenger_exit_distance)
+            delta_challenger_pig_distance, delta_challenger_exit_distance, compliance = deltas
+
+            # Make new features
+            features = Features(challenger_pig_distance=challenger_pig_distance,
+                                own_pig_distance=own_pig_distance,
+                                challenger_exit_distance=challenger_exit_distance,
+                                own_exit_distance=own_exit_distance,
+                                delta_challenger_pig_distance=delta_challenger_pig_distance,
+                                delta_challenger_exit_distance=delta_challenger_exit_distance,
+                                compliance=compliance)
+
+            # Add features
+            self.game_features.update(features)
+
+        ###############################################################################
         # Prints
 
         print("\n---------------------------\n")
+
+        print(self.game_view(state))
+
         for item in self._entities.values():
             print(item)
         print("")
@@ -342,11 +542,16 @@ class DanishPuppet(AStarAgent):
         print("Own {} plans:".format(len(own_paths)))
         for plan in own_plans:
             print("   {}".format(plan))
+            print("      {}".format(plan.path_print()))
         print("Challenger {} plans:".format(len(challengers_paths)))
         for plan in challengers_plans:
             print("   {}".format(plan))
+            print("      {}".format(plan.path_print()))
         del own_paths
         del challengers_paths
+
+        print("\nFeature vector:")
+        print("   {}".format(features))
 
         ###############################################################################
         # Manual overwrite
@@ -380,7 +585,7 @@ class DanishPuppet(AStarAgent):
             return DanishPuppet.ACTIONS.index(action)
 
         # If challenger is naive cooperative - go to the pig on the side farthest from him!
-        elif challenger_strategy == 2:
+        elif challenger_strategy == 2 or challenger_strategy == 3:
             # Pig plans for both agents
             own_pig_plans = [plan for plan in own_plans if plan.target == Plan.PigCatch]
             challenger_pig_plans = [plan for plan in challengers_plans if plan.target == Plan.PigCatch]
@@ -440,7 +645,7 @@ class DanishPuppet(AStarAgent):
         # reached end of action list - turn on the spot
         return DanishPuppet.ACTIONS.index("turn 1")  # substitutes for a no-op command
 
-    def neighbors(self, pos, state=None):
+    def neighbors(self, pos, must_turn=False, state=None):
         # State information
         state_width = state.shape[1]
         state_height = state.shape[0]
@@ -463,13 +668,24 @@ class DanishPuppet(AStarAgent):
         for action in DanishPuppet.ACTIONS:
 
             # Turning actions
-            if action.startswith("turn"):
-                new_direction = (pos.direction + int(action.split(' ')[1])) % 4
-                new_state = Neighbour(x=pos.x,
-                                      z=pos.z,
-                                      direction=new_direction,
-                                      action=action)
-                neighbors.append(new_state)
+            if must_turn:
+                if action.startswith("turn"):
+                    new_direction = (pos.direction + int(action.split(' ')[1])) % 4
+                    new_state = Neighbour(x=pos.x,
+                                          z=pos.z,
+                                          direction=new_direction,
+                                          action=action)
+                    neighbors.append(new_state)
+
+            # Strafing actions
+            else:
+                if action.startswith("strafe "):
+                    sign = int(action.split(' ')[1])
+                    neighbors.append(
+                        Neighbour(x=strafe_inc_x(pos.x, pos.direction, sign),
+                                  z=strafe_inc_z(pos.z, pos.direction, sign),
+                                  direction=pos.direction,
+                                  action=action))
 
             # Moving actions
             if action.startswith("move "):  # Note the space to distinguish from movemnorth etc
@@ -477,15 +693,6 @@ class DanishPuppet(AStarAgent):
                 neighbors.append(
                     Neighbour(x=move_inc_x(pos.x, pos.direction, sign),
                               z=move_inc_z(pos.z, pos.direction, sign),
-                              direction=pos.direction,
-                              action=action))
-
-            # Strafing actions
-            if action.startswith("strafe "):
-                sign = int(action.split(' ')[1])
-                neighbors.append(
-                    Neighbour(x=strafe_inc_x(pos.x, pos.direction, sign),
-                              z=strafe_inc_z(pos.z, pos.direction, sign),
                               direction=pos.direction,
                               action=action))
 
@@ -525,7 +732,7 @@ class DanishPuppet(AStarAgent):
     def matches(self, a, b):
         return a.x == b.x and a.z == b.z  # don't worry about dir and action
 
-    def _astar_multi_search(self, start, goals, **kwargs):
+    def _astar_multi_search(self, start, goals, state, must_turn=False, **kwargs):
         """
         Searches the entire graph for the shortest path from one location to any of a list of goals. 
         :param start: 
@@ -552,7 +759,7 @@ class DanishPuppet(AStarAgent):
 
         # Keep fetching nodes from queue
         while len(explorer) > 0:
-            _, current = heappop(explorer)
+            current_priority, current = heappop(explorer)
 
             # Check if any goal is reached
             for idx, goal in enumerate(goals_remaining):
@@ -564,7 +771,7 @@ class DanishPuppet(AStarAgent):
                 break
 
             # Go through neighbours
-            for nb in self.neighbors(current, **kwargs):
+            for nb in self.neighbors(current, must_turn=must_turn, state=state):
                 # Compute new cost
                 cost = nb.cost if hasattr(nb, "cost") else 1
                 new_cost = cost_so_far[current] + cost
