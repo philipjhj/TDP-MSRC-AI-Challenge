@@ -45,6 +45,9 @@ sys.path.insert(1, os.path.join(os.path.pardir, os.getcwd()))
 BASELINES_FOLDER = 'results/baselines/pig_chase/%s/%s'
 EPOCH_SIZE = 100
 
+MANUAL = False
+HUMAN_SPEED = False
+
 
 def agent_factory(name, role, clients, max_epochs,
                   logdir, visualizer, manual=False):
@@ -56,7 +59,7 @@ def agent_factory(name, role, clients, max_epochs,
     env = PigChaseEnvironment(clients, builder,
                               actions=DanishPuppet.ACTIONS,
                               role=role,
-                              human_speed=True,
+                              human_speed=HUMAN_SPEED,
                               randomize_positions=True)
 
     # Challenger  (Agent_1)
@@ -165,7 +168,7 @@ if __name__ == '__main__':
                             help='Minecraft clients endpoints (ip(:port)?)+')
 
     # Manual overwrite!
-    manual = False
+    manual = MANUAL
 
     args = arg_parser.parse_args()
 

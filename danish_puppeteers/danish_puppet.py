@@ -5,6 +5,7 @@ from collections import deque
 from collections import namedtuple, OrderedDict
 from itertools import product
 from heapq import heapify, heappop, heappush
+from time import time
 
 import numpy as np
 from six.moves import range
@@ -20,19 +21,21 @@ MEMORY_SIZE = 10
 # Print settings
 class Print:
     # Pre-game
-    history_length = True
+    history_length = False
 
     # In iterations
-    iteration_line = True
-    map = True
+    timing = True
+    iteration_line = False
+    map = False
     positions = False
     pig_neighbours = False
     own_plans = False
     challenger_plans = False
     detailed_plans = False
     feature_vector = False
-    feature_matrix = True
+    feature_matrix = False
     expected_challenger_move = False
+    challenger_strategy = False
     waiting_info = True
 
 
@@ -62,6 +65,9 @@ class EntityPosition:
 
         # Ensure consistency in angles
         self.direction = self.find_direction(unparsed_info['yaw'])
+
+    def to_neighbour(self):
+        return Neighbour(x=self.x, z=self.z, direction=self.direction, action="")
 
     def __str__(self):
         return "{: >16s}(x={:d}, z={:d}, direction={})".format(self.name + "_Position",
@@ -164,6 +170,7 @@ class FeatureHistory:
 class Plan:
     Exit = "Exit"
     PigCatch = "PigCatch"
+    NoGoal = "None"
 
     def __init__(self, target, x, z, prize, path):
         self.target = target
@@ -284,9 +291,19 @@ class DanishPuppet(AStarAgent):
         self.manual = False
         self.waiting_for_pig = False
         self.game_features = None
-        self.moves = -1
         self.history_queue = Queue(maxsize=MEMORY_SIZE)
         self.first_act_call = True
+
+        # Timing and iterations
+        self.moves = -1
+        self.n_games = 0
+        self.time_start = time()
+
+        # Pig stuff
+        self.previous_pig = None
+
+    def time_alive(self):
+        return time() - self.time_start
 
     @staticmethod
     def parse_positions(state):
@@ -331,7 +348,6 @@ class DanishPuppet(AStarAgent):
     def paths_to_plans(self, paths, exits, pig_neighbours):
         plans = []
         for path in paths:
-            offset = 1 if len(path) == 1 else 2
             if any([self.matches(target, path[-1]) for target in exits]):
                 final_position = path[-1]
                 plan = Plan(target=Plan.Exit,
@@ -346,6 +362,14 @@ class DanishPuppet(AStarAgent):
                             x=final_position.x,
                             z=final_position.z,
                             prize=DanishPuppet.PigCatchPrize - self.moves,
+                            path=path)
+                plans.append(plan)
+            else:
+                final_position = path[-1]
+                plan = Plan(target=Plan.NoGoal,
+                            x=final_position.x,
+                            z=final_position.z,
+                            prize=0 - self.moves,
                             path=path)
                 plans.append(plan)
         plans = sorted(plans, key=lambda plan: -plan.utility)
@@ -403,6 +427,14 @@ class DanishPuppet(AStarAgent):
                 self._previous_target_pos = None
                 self.game_features = None
                 self.moves = -1
+
+                self.n_games += 1
+
+                if Print.timing:
+                    print("\nTiming stats:")
+                    print("\tNumber of games: {}".format(self.n_games))
+                    print("\tTotal time: {:.3f}s".format(self.time_alive()))
+                    print("\tAverage game time: {:.3f}s".format(self.time_alive() / self.n_games))
             self.first_act_call = False
         else:
             self.first_act_call = True
@@ -433,16 +465,10 @@ class DanishPuppet(AStarAgent):
                 # print(item)
                 self._entities[item['name']].update(item)
 
-        # Get Details of our agent
-        me = [(col_nr, row_nr)
-              for row_nr, row in enumerate(state)
-              for col_nr, cell in enumerate(row)
-              if self.name in cell]
-        me_details = [e for e in entities if e['name'] == self.name][0]
-
-        # Convert angle to direction
-        yaw = int(me_details['yaw'])
-        direction = ((((yaw - 45) % 360) // 90) - 1) % 4  # convert Minecraft yaw to 0=north, 1=east etc.
+        # Entities
+        pig = self._entities['Pig']  # type: EntityPosition
+        me = self._entities['Agent_2']  # type: EntityPosition
+        challenger = self._entities['Agent_1']  # type: EntityPosition
 
         ###############################################################################
         # Determine possible targets
@@ -461,31 +487,19 @@ class DanishPuppet(AStarAgent):
                 pig_neighbours.append(DanishPuppet.Position(*new_position))
 
         # All target positions
-        targets = pig_neighbours + exits + \
-                  [Neighbour(x=self._entities["Agent_2"].x,
-                             z=self._entities["Agent_2"].z,
-                             direction=direction,
-                             action="")]
+        targets = pig_neighbours + exits
 
         ###############################################################################
         # Compute possible plans for each player plans
 
         # Find own paths
-        start = Neighbour(x=self._entities["Agent_2"].x,
-                          z=self._entities["Agent_2"].z,
-                          direction=direction,
-                          action="")
-        own_paths = self._astar_multi_search(start=start,
+        own_paths = self._astar_multi_search(start=me.to_neighbour(),
                                              goals=targets,
                                              state=state)[0]
         own_plans = self.paths_to_plans(own_paths, exits, pig_neighbours)
 
         # Find challengers paths
-        start = Neighbour(x=self._entities["Agent_1"].x,
-                          z=self._entities["Agent_1"].z,
-                          direction=direction,
-                          action="")
-        challengers_paths = self._astar_multi_search(start=start,
+        challengers_paths = self._astar_multi_search(start=challenger.to_neighbour(),
                                                      goals=targets,
                                                      state=state,
                                                      must_turn=True)[0]
@@ -541,6 +555,21 @@ class DanishPuppet(AStarAgent):
 
         # Otherwise compute deltas
         else:
+            # If pig has moved, then accept challenger to be moving towards either old or new location
+            if not self.matches(pig, self.previous_pig):
+                previous_challenger_pig_distance = challenger_pig_distance
+                plans_to_new_pig_position = self._astar_multi_search(start=challenger.to_neighbour(),
+                                                                     goals=[self.previous_pig],
+                                                                     state=state,
+                                                                     must_turn=True)
+                alternative_plans = self.paths_to_plans(plans_to_new_pig_position, exits, pig_neighbours)
+
+                challenger_pig_distance = min(challenger_pig_distance,
+                                             *[plan.plan_length() for plan in alternative_plans])
+
+                print("Pig moved. Challenger distance goes from {} to {}".format(previous_challenger_pig_distance,
+                                                                                 challenger_pig_distance))
+
             # Get last features and compute deltas
             last_features = self.game_features.last_features()  # type: Features
             deltas = last_features.compute_deltas(challenger_pig_distance=challenger_pig_distance,
@@ -599,6 +628,11 @@ class DanishPuppet(AStarAgent):
             print(self.game_features.to_matrix())
 
         ###############################################################################
+        # Update memory of last iteration
+
+        self.previous_pig = pig
+
+        ###############################################################################
         # Manual overwrite
 
         # Check if manual control is wanted
@@ -610,17 +644,39 @@ class DanishPuppet(AStarAgent):
                     return DanishPuppet.KeysMapping[choice]
 
         ###############################################################################
-        # Pig is catchable
+        # Determine challengers strategy
 
         # Strategies are:
+        # 0: Initial round (no information)
         # 1: Random-walk idiot
         # 2: Naive Cooperative
         # 3: Optimal cooperative
         # 4: Douche
-        challenger_strategy = 2
+
+        # If this is the first round, assume cooperative
+        if features.compliance is None:
+            challenger_strategy = 0
+
+        # Otherwise inspect past behavior
+        else:
+            # Data on past
+            matrix = self.game_features.to_matrix()
+            compliances = matrix[1:, 6]
+
+            # Base predicted strategy on compliance of challenger
+            if compliances.mean() < 0.5:
+                challenger_strategy = 1
+            else:
+                challenger_strategy = 2
+
+        ###############################################################################
+        # Determine plan based on challengers strategy
 
         # If challenger is an idiot or a douche - backstab him!
         if challenger_strategy == 1 or challenger_strategy == 4:
+            if Print.challenger_strategy:
+                print("\nChallenger seems to be an idiot.")
+
             # Exit plan
             plan = sorted([plan for plan in own_plans if plan.target == Plan.Exit],
                           key=lambda plan: -plan.utility)[0]
@@ -630,7 +686,13 @@ class DanishPuppet(AStarAgent):
             return DanishPuppet.ACTIONS.index(action)
 
         # If challenger is naive cooperative - go to the pig on the side farthest from him!
-        elif challenger_strategy == 2 or challenger_strategy == 3:
+        elif challenger_strategy == 2 or challenger_strategy == 3 or challenger_strategy == 0:
+            if Print.challenger_strategy:
+                if challenger_strategy == 0:
+                    print("\nFirst round. Challenger is assumed compliant.")
+                else:
+                    print("\nChallenger seems compliant.")
+
             # Pig plans for both agents
             own_pig_plans = [plan for plan in own_plans if plan.target == Plan.PigCatch]
             challenger_pig_plans = [plan for plan in challengers_plans if plan.target == Plan.PigCatch]
@@ -652,44 +714,6 @@ class DanishPuppet(AStarAgent):
             # Return next action (0th element is current position)
             action = own_pig_plan[1].action
             return DanishPuppet.ACTIONS.index(action)
-
-        ###############################################################################
-        # Original code
-
-        target = [(col_nr, row_nr)
-                  for row_nr, row in enumerate(state)
-                  for col_nr, cell in enumerate(row)
-                  if self._target in cell]
-
-        # Get agent and target nodes
-        me = Neighbour(x=me[0][0],
-                       z=me[0][1],
-                       direction=direction,
-                       action="")
-        target = Neighbour(x=target[0][0],
-                           z=target[0][1],
-                           direction=0,
-                           action="")
-
-        # If distance to the pig is one, just turn and wait
-        if self.heuristic(me, target) == 1:
-            return DanishPuppet.ACTIONS.index("turn 1")  # substitutes for a no-op command
-
-        if not self._previous_target_pos == target:
-            # Target has moved, or this is the first action of a new mission - calculate a new action list
-            self._previous_target_pos = target
-
-            path, costs = self._find_shortest_path(me, target, state=state)
-            self._action_list = []
-            for point in path:
-                self._action_list.append(point.action)
-
-        if self._action_list is not None and len(self._action_list) > 0:
-            action = self._action_list.pop(0)
-            return DanishPuppet.ACTIONS.index(action)
-
-        # reached end of action list - turn on the spot
-        return DanishPuppet.ACTIONS.index("turn 1")  # substitutes for a no-op command
 
     def neighbors(self, pos, must_turn=False, state=None):
         # State information
