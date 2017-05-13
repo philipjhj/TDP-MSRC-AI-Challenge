@@ -63,7 +63,14 @@ class Plan:
 
 
 class DanishPuppet(AStarAgent):
-    ACTIONS = ["move 1", "turn -1", "turn 1", 'move -1']
+    ACTIONS = ["move 1",  # 0
+               "turn -1",  # 1
+               "turn 1",  # 2
+               'move -1',  # 3
+               "strafe 1",  # 4
+               "strafe -1",  # 5
+               'jump 1'  # 6 (wait)
+               ]
     Neighbour = namedtuple('Neighbour', ['cost', 'x', 'z', 'direction', 'action'])
     Position = namedtuple("Position", "x, z")
     KeysMapping = {'L': ACTIONS.index('turn -1'),
@@ -74,10 +81,24 @@ class DanishPuppet(AStarAgent):
                    'u': ACTIONS.index('move 1'),
                    'F': ACTIONS.index('move 1'),
                    'f': ACTIONS.index('move 1'),
-                   'D': ACTIONS.index('move -1'),
-                   'd': ACTIONS.index('move -1'),
                    'B': ACTIONS.index('move -1'),
-                   'b': ACTIONS.index('move -1')}
+                   'b': ACTIONS.index('move -1'),
+                   # AWSD + QE
+                   "a": ACTIONS.index("strafe -1"),
+                   "A": ACTIONS.index("strafe -1"),
+                   "w": ACTIONS.index("move 1"),
+                   "W": ACTIONS.index("move 1"),
+                   "s": ACTIONS.index("move -1"),
+                   "S": ACTIONS.index("move -1"),
+                   "d": ACTIONS.index("strafe 1"),
+                   "D": ACTIONS.index("strafe 1"),
+                   'q': ACTIONS.index('turn -1'),
+                   'Q': ACTIONS.index('turn -1'),
+                   'e': ACTIONS.index('turn 1'),
+                   'E': ACTIONS.index('turn 1'),
+                   # Jump
+                   ' ': ACTIONS.index('jump 1')
+                   }
     EntityNames = ["Agent_1", "Agent_2", "Pig"]
     PigCatchPrize = 25
     ExitPrice = 5
@@ -135,6 +156,10 @@ class DanishPuppet(AStarAgent):
         return plans
 
     def act(self, state, reward, done, is_training=False):
+
+        # TODO: Strafe and possibly the ability to move backwards is not nessesarily in the ASTAR and BFS algorithms
+        #   TODO: It all depends on the neighbors-method
+
         if done:
             self._action_list = []
             self._previous_target_pos = None
@@ -233,7 +258,7 @@ class DanishPuppet(AStarAgent):
         # Check if manual control is wanted
         if self.manual:
             while True:
-                choice = raw_input("\nType action (L, R, F, B): ")
+                choice = raw_input("\nType action (AWSD + QE): ")
                 if choice in DanishPuppet.KeysMapping:
                     print("   Choice {} translated to {}".format(choice, DanishPuppet.KeysMapping[choice]))
                     return DanishPuppet.KeysMapping[choice]

@@ -67,7 +67,7 @@ def agent_factory(name, role, clients, max_epochs,
             agent_type = PigChaseEnvironment.AGENT_TYPE_1
         else:
             agent_type = PigChaseEnvironment.AGENT_TYPE_2
-        obs = env.reset(agent_type)
+        state = env.reset(agent_type)
 
         reward = 0
         agent_done = False
@@ -75,7 +75,7 @@ def agent_factory(name, role, clients, max_epochs,
         while True:
 
             # select an action
-            action = agent.act(obs, reward, agent_done, is_training=True)
+            action = agent.act(state, reward, agent_done, is_training=True)
 
             # reset if needed
             if env.done:
@@ -83,10 +83,10 @@ def agent_factory(name, role, clients, max_epochs,
                     agent_type = PigChaseEnvironment.AGENT_TYPE_1
                 else:
                     agent_type = PigChaseEnvironment.AGENT_TYPE_2
-                obs = env.reset(agent_type)
+                state = env.reset(agent_type)
 
             # take a step
-            obs, reward, agent_done = env.do(action)
+            state, reward, agent_done = env.do(action)
 
     # Our Agent (Agent_2)
     else:
@@ -96,7 +96,7 @@ def agent_factory(name, role, clients, max_epochs,
         if manual:
             agent.manual = True
 
-        obs = env.reset()
+        state = env.reset()
         reward = 0
         agent_done = False
         viz_rewards = []
@@ -109,12 +109,21 @@ def agent_factory(name, role, clients, max_epochs,
 
                 visualize_training(visualizer, step, viz_rewards)
                 viz_rewards = []
-                obs = env.reset()
+                state = env.reset()
 
             # select an action
-            action = agent.act(obs, reward, agent_done, is_training=True)
+            action = None
+            while action is None:
+                action = agent.act(state, reward, agent_done, is_training=True)
+
+                # 'jump' or action 6 is set to wait
+                if action == 6:
+                    action = None
+                    sleep(4e-3)
+                    state = env.state
+
             # take a step
-            obs, reward, agent_done = env.do(action)
+            state, reward, agent_done = env.do(action)
             viz_rewards.append(reward)
 
             agent.inject_summaries(step)
