@@ -2,6 +2,7 @@ from __future__ import division
 
 from collections import deque
 from collections import namedtuple, OrderedDict
+from itertools import product
 from heapq import heapify, heappop, heappush
 
 import numpy as np
@@ -41,7 +42,7 @@ class EntityPosition:
         self.direction = self.find_direction(unparsed_info['yaw'])
 
     def __str__(self):
-        return "{: >16s}(x={:d}, y={:d}, direction={})".format(self.name + "_Position",
+        return "{: >16s}(x={:d}, z={:d}, direction={})".format(self.name + "_Position",
                                                                self.x,
                                                                self.z,
                                                                self.direction)
@@ -115,18 +116,19 @@ class DanishPuppet(AStarAgent):
     def paths_to_plans(self, paths, exits, pig_neighbours):
         plans = []
         for path in paths:
+            offset = 1 if len(path) == 1 else 2
             if any([self.matches(target, path[-1]) for target in exits]):
                 final_position = path[-1]
                 plan = Plan(target="Exit",
                             target_position=(final_position.x, final_position.z),
-                            utility=DanishPuppet.ExitPrice - len(path) + 2,
+                            utility=DanishPuppet.ExitPrice - len(path) + offset,
                             path=path)
                 plans.append(plan)
             if any([self.matches(target, path[-1]) for target in pig_neighbours]):
                 final_position = path[-1]
                 plan = Plan(target="PigCatch",
                             target_position=(final_position.x, final_position.z),
-                            utility=DanishPuppet.PigCatchPrize - len(path) + 2,
+                            utility=DanishPuppet.PigCatchPrize - len(path) + offset,
                             path=path)
                 plans.append(plan)
         plans = sorted(plans, key=lambda plan: -plan.utility)
@@ -175,17 +177,30 @@ class DanishPuppet(AStarAgent):
         yaw = int(me_details['yaw'])
         direction = ((((yaw - 45) % 360) // 90) - 1) % 4  # convert Minecraft yaw to 0=north, 1=east etc.
 
-        ###
-        # Test BFS
+        #####
+        # Compute possible plans for each player plans
+
         # Exist positions
         exits = [DanishPuppet.Neighbour(1, 1, 4, 0, ""), DanishPuppet.Neighbour(1, 7, 4, 0, "")]
 
-        # Get neighbours of pig
-        pig_node = DanishPuppet.Neighbour(1, self._entities["Pig"].x, self._entities["Pig"].z, 0, "")
-        pig_neighbours = self.neighbors(pig_node, state)
+        # Get pig position
+        pig_node = DanishPuppet.Position(self._entities["Pig"].x, self._entities["Pig"].z)
+
+        # Get neighbours
+        pig_neighbours = []
+        for x_diff, z_diff in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            new_position = (pig_node.x + x_diff, pig_node.z + z_diff)
+            if "grass" in state[new_position[0], new_position[1]]:
+                pig_neighbours.append(DanishPuppet.Position(*new_position))
+
+        print("Pig neighbours:")
+        for neighbour in pig_neighbours:
+            print("   {}".format(neighbour))
+        print("")
 
         # All target positions
-        targets = pig_neighbours + exits
+        targets = pig_neighbours + exits + \
+                  [DanishPuppet.Neighbour(1, self._entities["Agent_2"].x, self._entities["Agent_2"].z, direction, "")]
 
         # Find own paths
         start = DanishPuppet.Neighbour(1, self._entities["Agent_2"].x, self._entities["Agent_2"].z, direction, "")
@@ -348,6 +363,7 @@ class DanishPuppet(AStarAgent):
             while node is not start:
                 path.appendleft(node)
                 node = came_from[node]
+            path.appendleft(start)
             paths.append(path)
 
         return paths, cost_so_far
