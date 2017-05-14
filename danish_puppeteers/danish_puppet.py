@@ -5,8 +5,10 @@ from collections import deque
 from collections import namedtuple, OrderedDict
 from heapq import heapify, heappop, heappush
 from time import time
+import cPickle as pickle
 
 import numpy as np
+from pathlib2 import Path
 from six.moves import range
 
 from malmopy.agent import AStarAgent
@@ -16,26 +18,36 @@ CELL_WIDTH = 33
 
 MEMORY_SIZE = 10
 
+DEBUG_STORE_IMAGE = False
+
+def print_if(condition, string):
+    if condition:
+        print(string)
 
 # Print settings
 class Print:
     # Pre-game
     history_length = False
 
+    # Debug
+    act_reached = False
+    code_line_print = False
+
     # In iterations
     timing = True
-    iteration_line = False
-    map = False
+    iteration_line = True
+    map = True
     positions = False
     pig_neighbours = False
     own_plans = False
     challenger_plans = False
     detailed_plans = False
     feature_vector = False
-    feature_matrix = True
+    feature_matrix = False
     expected_challenger_move = False
-    challenger_strategy = False
+    challenger_strategy = True
     waiting_info = True
+    repeated_waiting_info = False
 
     # Post game
     game_summary = True
@@ -183,6 +195,7 @@ class GameSummary:
     def __repr__(self):
         return str(self)
 
+
 class Plan:
     Exit = "Exit"
     PigCatch = "PigCatch"
@@ -252,6 +265,16 @@ class Neighbour:
 
 
 class DanishPuppet(AStarAgent):
+    class ActionMap:
+        move_f = 0
+        turn_l = 1
+        turn_r = 2
+        move_b = 3
+        strafe_r = 4
+        strafe_l = 5
+        jump = 6
+        wait = 7
+
     ACTIONS = ["move 1",  # 0
                "turn -1",  # 1
                "turn 1",  # 2
@@ -295,10 +318,9 @@ class DanishPuppet(AStarAgent):
     PigCatchPrize = 25
     ExitPrice = 5
 
-    def __init__(self, name, target, visualizer=None):
+    def __init__(self, name, visualizer=None, wait_for_pig=True):
         super(DanishPuppet, self).__init__(name, len(DanishPuppet.ACTIONS),
                                            visualizer=visualizer)
-        self._target = str(target)
         self._previous_target_pos = None
         self._action_list = []
 
@@ -313,10 +335,13 @@ class DanishPuppet(AStarAgent):
         # Timing and iterations
         self.moves = -1
         self.n_games = 0
+        self.n_total_moves = 0
         self.time_start = time()
 
         # Pig stuff
         self.previous_pig = None
+        self.wait_for_pig_if_necessary = wait_for_pig
+        self.pig_wait_counter = 0
 
     def time_alive(self):
         return time() - self.time_start
@@ -349,13 +374,14 @@ class DanishPuppet(AStarAgent):
             string_row1 = []
             string_row2 = []
             for cell in row:
-                if not "grass" in cell:
+                if not "grass" in cell and not "lapis_block" in cell:
                     string_row1.append("XXX")
                     string_row2.append("XXX")
                 else:
+                    bottom_corners = "E" if "lapis_block" in cell else " "
                     string_row1.append(("A" if "Agent_2" in cell else " ") + " " +
                                        ("P" if "Pig" in cell else " "))
-                    string_row2.append(" " + ("C" if "Agent_1" in cell else " ") + " ")
+                    string_row2.append(bottom_corners + ("C" if "Agent_1" in cell else " ") + bottom_corners)
             string_rows.append("".join(string_row1))
             string_rows.append("".join(string_row2))
 
@@ -449,10 +475,25 @@ class DanishPuppet(AStarAgent):
 
         self.history_queue.put(game_summary)
 
-    def act(self, state, reward, done, is_training=False):
+    def act(self, state, reward, done, is_training=False, frame=None):
+
+        if Print.act_reached:
+            print("DanishPuppet.act() called")
+
+        if DEBUG_STORE_IMAGE:
+            storage_path = Path("..", "data_dumps")
+            files_in_directory = [str(item.stem) for item in storage_path.glob("*.p")]
+            try:
+                next_file_number = max([int(item.replace("image_", ""))
+                                        for item in files_in_directory]) + 1
+            except ValueError:
+                next_file_number = 0
+
+            pickle.dump((state, frame), Path(storage_path, "image_{}.p".format(next_file_number)).open("wb"))
 
         ###############################################################################
         # Get information from environment
+        print_if(Print.code_line_print, "CODE: Information parsing")
 
         if done:
             if self.first_act_call:
@@ -468,10 +509,13 @@ class DanishPuppet(AStarAgent):
                 self.n_games += 1
 
                 if Print.timing:
+                    c_time = self.time_alive()
                     print("\nTiming stats:")
                     print("\tNumber of games: {}".format(self.n_games))
-                    print("\tTotal time: {:.3f}s".format(self.time_alive()))
-                    print("\tAverage game time: {:.3f}s".format(self.time_alive() / self.n_games))
+                    print("\tTotal time: {:.3f}s".format(c_time))
+                    print("\tAverage game time: {:.3f}s".format(c_time / self.n_games))
+                    if self.n_total_moves >= 0:
+                        print("\tAverage move time: {:.3f}s".format(c_time / self.n_total_moves))
             self.first_act_call = False
         else:
             self.first_act_call = True
@@ -507,8 +551,16 @@ class DanishPuppet(AStarAgent):
         me = self._entities['Agent_2']  # type: EntityPosition
         challenger = self._entities['Agent_1']  # type: EntityPosition
 
+        if Print.map and not self.waiting_for_pig:
+            print(self.map_view(state))
+
+        if Print.positions and not self.waiting_for_pig:
+            for item in self._entities.values():
+                print(item)
+
         ###############################################################################
         # Determine possible targets
+        print_if(Print.code_line_print, "CODE: Determining targets")
 
         # Exist positions
         exits = [Neighbour(x=1, z=4, direction=0, action=""), Neighbour(x=7, z=4, direction=0, action="")]
@@ -518,16 +570,24 @@ class DanishPuppet(AStarAgent):
 
         # Get neighbours
         pig_neighbours = []
+        neighbour_cells = []
         for x_diff, z_diff in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
             new_position = (pig_node.x + x_diff, pig_node.z + z_diff)
-            if "grass" in state[new_position[0], new_position[1]]:
+            if "grass" in state[new_position[1], new_position[0]]:
                 pig_neighbours.append(DanishPuppet.Position(*new_position))
+                neighbour_cells.append(state[new_position[0], new_position[1]])
 
         # All target positions
         targets = pig_neighbours + exits
 
+        if Print.pig_neighbours:
+            print("\nPig neighbours:")
+            for neighbour, cell in zip(pig_neighbours, neighbour_cells):
+                print("   {}: {}".format(neighbour, cell))
+
         ###############################################################################
         # Compute possible plans for each player plans
+        print_if(Print.code_line_print, "CODE: Computing plans")
 
         # Find own paths
         own_paths = self._astar_multi_search(start=me.to_neighbour(),
@@ -542,21 +602,41 @@ class DanishPuppet(AStarAgent):
                                                      must_turn=True)[0]
         challengers_plans = self.paths_to_plans(challengers_paths, exits, pig_neighbours)
 
+        if Print.own_plans:
+            print("\nOwn {} plans:".format(len(own_paths)))
+            for plan in own_plans:
+                print("   {}".format(plan))
+                if Print.detailed_plans:
+                    print("      {}".format(plan.path_print()))
+
+        if Print.challenger_plans:
+            print("\nChallenger {} plans:".format(len(challengers_paths)))
+            for plan in challengers_plans:
+                print("   {}".format(plan))
+                if Print.detailed_plans:
+                    print("      {}".format(plan.path_print()))
+        del own_paths
+        del challengers_paths
+
         ###############################################################################
         # If pig is not in a useful place - wait
+        print_if(Print.code_line_print, "CODE: Considering pig-wait")
 
-        if len(pig_neighbours) > 2:
-            if not self.waiting_for_pig:
+        if len(pig_neighbours) > 2 and self.wait_for_pig_if_necessary:
+            if Print.repeated_waiting_info or not self.waiting_for_pig:
                 if Print.waiting_info:
-                    print("\nWaiting for pig at {} ...".format(pig_node))
+                    print("\nWaiting for pig at {}, count {} ...".format(pig_node, self.pig_wait_counter))
                     if Print.map:
                         print(self.map_view(state))
                 self.waiting_for_pig = True
+            self.pig_wait_counter += 1
             return DanishPuppet.ACTIONS.index("wait")
         self.waiting_for_pig = False
+        self.pig_wait_counter = 0
 
         ###############################################################################
         # Feature Extraction
+        print_if(Print.code_line_print, "CODE: Extracting features")
 
         # Pig distances
         own_pig_distance = min([plan.plan_length() for plan in own_plans
@@ -602,7 +682,7 @@ class DanishPuppet(AStarAgent):
                 alternative_plans = self.paths_to_plans(plans_to_new_pig_position, exits, pig_neighbours)
 
                 challenger_pig_distance = min(challenger_pig_distance,
-                                             *[plan.plan_length() for plan in alternative_plans])
+                                              *[plan.plan_length() for plan in alternative_plans])
 
                 print("Pig moved. Challenger distance goes from {} to {}".format(previous_challenger_pig_distance,
                                                                                  challenger_pig_distance))
@@ -625,37 +705,6 @@ class DanishPuppet(AStarAgent):
             # Add features
             self.game_features.update(features)
 
-        ###############################################################################
-        # Prints
-
-        if Print.map:
-            print(self.map_view(state))
-
-        if Print.positions:
-            for item in self._entities.values():
-                print(item)
-
-        if Print.pig_neighbours:
-            print("\nPig neighbours:")
-            for neighbour in pig_neighbours:
-                print("   {}".format(neighbour))
-
-        if Print.own_plans:
-            print("\nOwn {} plans:".format(len(own_paths)))
-            for plan in own_plans:
-                print("   {}".format(plan))
-                if Print.detailed_plans:
-                    print("      {}".format(plan.path_print()))
-
-        if Print.challenger_plans:
-            print("\nChallenger {} plans:".format(len(challengers_paths)))
-            for plan in challengers_plans:
-                print("   {}".format(plan))
-                if Print.detailed_plans:
-                    print("      {}".format(plan.path_print()))
-        del own_paths
-        del challengers_paths
-
         if Print.feature_vector:
             print("\nFeature vector:")
             print("   {}".format(features))
@@ -670,7 +719,13 @@ class DanishPuppet(AStarAgent):
         self.previous_pig = pig
 
         ###############################################################################
+        # This is a move
+
+        self.n_total_moves += 1
+
+        ###############################################################################
         # Manual overwrite
+        print_if(Print.code_line_print, "CODE: Considering manual overwrite")
 
         # Check if manual control is wanted
         if self.manual:
@@ -682,6 +737,7 @@ class DanishPuppet(AStarAgent):
 
         ###############################################################################
         # Determine challengers strategy
+        print_if(Print.code_line_print, "CODE: Determining challenger strategy")
 
         # Strategies are:
         # 0: Initial round (no information)
@@ -702,6 +758,7 @@ class DanishPuppet(AStarAgent):
 
         ###############################################################################
         # Determine plan based on challengers strategy
+        print_if(Print.code_line_print, "CODE: Selecting plan based on strategy")
 
         # If challenger is an idiot or a douche - backstab him!
         if challenger_strategy == 1 or challenger_strategy == 4:
@@ -727,6 +784,14 @@ class DanishPuppet(AStarAgent):
             # Pig plans for both agents
             own_pig_plans = [plan for plan in own_plans if plan.target == Plan.PigCatch]
             challenger_pig_plans = [plan for plan in challengers_plans if plan.target == Plan.PigCatch]
+
+            # Check if pig can be caught by one person - then catch it!
+            if len(own_pig_plans) == 1:
+                if Print.waiting_info:
+                    print("Catching pig on my own!")
+                own_pig_plan = own_pig_plans[0]
+                action = own_pig_plan[1].action
+                return DanishPuppet.ACTIONS.index(action)
 
             # Find shortest plan from challenger
             challenger_pig_plan = sorted(challenger_pig_plans, key=lambda plan: -plan.utility)[0]

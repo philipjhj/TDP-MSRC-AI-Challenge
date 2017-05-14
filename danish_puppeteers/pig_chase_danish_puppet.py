@@ -15,18 +15,17 @@
 # SOFTWARE.
 # ===================================================================================================================
 
-import numpy as np
 import os
 import sys
-
 from argparse import ArgumentParser
 from datetime import datetime
-from os import path
 from threading import Thread, active_count
 from time import sleep
 
 from danish_puppet import DanishPuppet
 from malmopy.agent import RandomAgent
+from standstill_agent import StandstillAgent
+
 try:
     from malmopy.visualization.tensorboard import TensorboardVisualizer
     from malmopy.visualization.tensorboard.cntk import CntkConverter
@@ -34,8 +33,8 @@ except ImportError:
     print('Cannot import tensorboard, using ConsoleVisualizer.')
     from malmopy.visualization import ConsoleVisualizer
 
-from common import parse_clients_args, visualize_training, ENV_AGENT_NAMES, ENV_TARGET_NAMES
-from agent import PigChaseChallengeAgent, FocusedAgent
+from common import parse_clients_args, visualize_training, ENV_AGENT_NAMES
+from agent import PigChaseChallengeAgent
 from environment import PigChaseEnvironment, PigChaseSymbolicStateBuilder
 
 # Enforce path
@@ -46,7 +45,20 @@ BASELINES_FOLDER = 'results/baselines/pig_chase/%s/%s'
 EPOCH_SIZE = 100
 
 MANUAL = False
-HUMAN_SPEED = False
+HUMAN_SPEED = True
+USE_STANDSTILL_AGENT = False
+WAIT_FOR_PIG = True
+
+PASS_FRAME = False
+
+AGENT_TYPE = {
+    RandomAgent: PigChaseEnvironment.AGENT_TYPE_1,
+    StandstillAgent: PigChaseEnvironment.AGENT_TYPE_3
+}
+
+def get_agent_type(agent):
+    return AGENT_TYPE.get(type(agent),
+                          PigChaseEnvironment.AGENT_TYPE_2)
 
 
 def agent_factory(name, role, clients, max_epochs,
@@ -64,12 +76,12 @@ def agent_factory(name, role, clients, max_epochs,
 
     # Challenger  (Agent_1)
     if role == 0:
-        agent = PigChaseChallengeAgent(name)
-
-        if type(agent.current_agent) == RandomAgent:
-            agent_type = PigChaseEnvironment.AGENT_TYPE_1
+        if USE_STANDSTILL_AGENT:
+            agent = StandstillAgent(name=name, turn=True)
         else:
-            agent_type = PigChaseEnvironment.AGENT_TYPE_2
+            agent = PigChaseChallengeAgent(name)
+
+        agent_type = get_agent_type(agent.current_agent)
         state = env.reset(agent_type)
 
         reward = 0
@@ -82,10 +94,7 @@ def agent_factory(name, role, clients, max_epochs,
 
             # reset if needed
             if env.done:
-                if type(agent.current_agent) == RandomAgent:
-                    agent_type = PigChaseEnvironment.AGENT_TYPE_1
-                else:
-                    agent_type = PigChaseEnvironment.AGENT_TYPE_2
+                agent_type = get_agent_type(agent.current_agent)
                 state = env.reset(agent_type)
 
             # take a step
@@ -93,7 +102,8 @@ def agent_factory(name, role, clients, max_epochs,
 
     # Our Agent (Agent_2)
     else:
-        agent = DanishPuppet(name=name, target=ENV_TARGET_NAMES[0])
+        agent = DanishPuppet(name=name,
+                             wait_for_pig=WAIT_FOR_PIG)
 
         # Manual overwrite!
         if manual:
@@ -118,8 +128,14 @@ def agent_factory(name, role, clients, max_epochs,
 
             # select an action
             action = None
+            frame = None if not PASS_FRAME else env.frame
             while action is None:
-                action = agent.act(state, reward, agent_done, is_training=True)
+                # for key, item in env.world_observations.items():
+                #     print(key, ":", item)
+
+                action = agent.act(state, reward, agent_done,
+                                   is_training=True,
+                                   frame=frame)
 
                 # 'wait'
                 if action == DanishPuppet.ACTIONS.index("wait"):
