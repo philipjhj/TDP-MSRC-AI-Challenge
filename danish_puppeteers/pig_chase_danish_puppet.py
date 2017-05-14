@@ -44,12 +44,12 @@ sys.path.insert(1, os.path.join(os.path.pardir, os.getcwd()))
 BASELINES_FOLDER = 'results/baselines/pig_chase/%s/%s'
 EPOCH_SIZE = 100
 
-MANUAL = False
+MANUAL = True
 HUMAN_SPEED = True
-USE_STANDSTILL_AGENT = False
-WAIT_FOR_PIG = True
+USE_STANDSTILL_AGENT = True
+WAIT_FOR_PIG = False
 
-PASS_FRAME = False
+PASS_FRAME = True
 
 AGENT_TYPE = {
     RandomAgent: PigChaseEnvironment.AGENT_TYPE_1,
@@ -176,7 +176,7 @@ def run_experiment(agents_def):
 
 if __name__ == '__main__':
     arg_parser = ArgumentParser('Danish Puppet Pig Chase experiment')
-    arg_parser.add_argument('-t', '--type', type=str, default='astar',
+    arg_parser.add_argument('-t', '--type', type=str, default='danish',
                             choices=['astar', 'random'],
                             help='The type of baseline to run.')
     arg_parser.add_argument('-e', '--epochs', type=int, default=5,
