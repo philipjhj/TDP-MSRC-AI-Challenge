@@ -53,7 +53,7 @@ PASS_FRAME = True
 
 AGENT_TYPE = {
     RandomAgent: PigChaseEnvironment.AGENT_TYPE_1,
-    StandstillAgent: PigChaseEnvironment.AGENT_TYPE_3
+    StandstillAgent: PigChaseEnvironment.AGENT_TYPE_0
 }
 
 def get_agent_type(agent):
@@ -77,7 +77,7 @@ def agent_factory(name, role, clients, max_epochs,
     # Challenger  (Agent_1)
     if role == 0:
         if USE_STANDSTILL_AGENT:
-            agent = StandstillAgent(name=name, turn=True)
+            agent = StandstillAgent(name=name, rotate=True)
         else:
             agent = PigChaseChallengeAgent(name)
 

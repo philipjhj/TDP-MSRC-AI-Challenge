@@ -26,6 +26,27 @@ def print_if(condition, string):
         print(string)
 
 
+def map_view(state):
+    string_rows = []
+
+    for row in state:
+        string_row1 = []
+        string_row2 = []
+        for cell in row:
+            if not "grass" in cell and not "lapis_block" in cell:
+                string_row1.append("XXX")
+                string_row2.append("XXX")
+            else:
+                bottom_corners = "E" if "lapis_block" in cell else " "
+                string_row1.append(("A" if "Agent_2" in cell else " ") + " " +
+                                   ("P" if "Pig" in cell else " "))
+                string_row2.append(bottom_corners + ("C" if "Agent_1" in cell else " ") + bottom_corners)
+        string_rows.append("".join(string_row1))
+        string_rows.append("".join(string_row2))
+
+    return "\n".join(string_rows)
+
+
 # Print settings
 class Print:
     # Pre-game
@@ -392,27 +413,6 @@ class DanishPuppet(AStarAgent):
 
         return forward, side
 
-    @staticmethod
-    def map_view(state):
-        string_rows = []
-
-        for row in state:
-            string_row1 = []
-            string_row2 = []
-            for cell in row:
-                if not "grass" in cell and not "lapis_block" in cell:
-                    string_row1.append("XXX")
-                    string_row2.append("XXX")
-                else:
-                    bottom_corners = "E" if "lapis_block" in cell else " "
-                    string_row1.append(("A" if "Agent_2" in cell else " ") + " " +
-                                       ("P" if "Pig" in cell else " "))
-                    string_row2.append(bottom_corners + ("C" if "Agent_1" in cell else " ") + bottom_corners)
-            string_rows.append("".join(string_row1))
-            string_rows.append("".join(string_row2))
-
-        return "\n".join(string_rows)
-
     def paths_to_plans(self, paths, exits, pig_neighbours):
         plans = []
         for path in paths:
@@ -567,7 +567,7 @@ class DanishPuppet(AStarAgent):
         challenger = self._entities['Agent_1']  # type: EntityPosition
 
         if Print.map and not self.waiting_for_pig:
-            print(self.map_view(state))
+            print(map_view(state))
 
         if Print.positions and not self.waiting_for_pig:
             for item in self._entities.values():
@@ -662,7 +662,7 @@ class DanishPuppet(AStarAgent):
                 if Print.waiting_info:
                     print("\nWaiting for pig at {}...".format(pig_node))
                     if Print.map:
-                        print(self.map_view(state))
+                        print(map_view(state))
                 self.waiting_for_pig = True
             self.pig_wait_counter += 1
             return DanishPuppet.ACTIONS.index("wait")

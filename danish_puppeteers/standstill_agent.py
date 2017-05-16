@@ -9,16 +9,16 @@ from malmopy.agent import BaseAgent
 class StandstillAgent(BaseAgent):
     ActionMap = DanishPuppet.ActionMap
 
-    def __init__(self, name, visualizer=None, turn=True):
-        self.turn = turn
+    def __init__(self, name, visualizer=None, rotate=True):
+        self.rotate = rotate
         self.current_agent = self
-        self.actions = []
-
-        if self.turn:
-            self.actions += [StandstillAgent.ActionMap.turn_r, StandstillAgent.ActionMap.turn_l]
+        self.actions = [StandstillAgent.ActionMap.turn_r, StandstillAgent.ActionMap.turn_l]
 
         super(StandstillAgent, self).__init__(name, len(self.actions), visualizer)
 
     def act(self, state, reward, done, is_training=False):
 
-        return random.choice(self.actions)
+        if not self.rotate:
+            return random.choice(self.actions)
+        else:
+            return self.actions[0]
