@@ -1,3 +1,17 @@
+DIRECTION_NAMES = [
+    "north",
+    "east",
+    "south",
+    "west"
+]
+
+ENTITY_NAMES = ["Agent_1", "Agent_2", "Pig"]
+
+
+PIG_CATCH_PRIZE = 25
+EXIT_PRICE = 5
+
+
 def map_view(state):
     """
     Returns a print-friendly view of the state of the game. 
@@ -157,3 +171,88 @@ KeysMapping = {'L': AllActions.turn_l,
                "n": AllActions.wait,
                "N": AllActions.wait,
                }
+
+
+class GameObserver:
+    @staticmethod
+    def parse_positions(state):
+        entity_positions = dict()
+
+        # Go through rows and columns
+        for row_nr, row in enumerate(state):
+            for col_nr, cell in enumerate(row):
+
+                # Go through entities that still have not been found
+                for entity_nr, entity in enumerate(ENTITY_NAMES):
+
+                    # Check if found
+                    if entity in cell:
+                        entity_positions[entity] = (abs(col_nr), abs(row_nr))
+
+                    # Check if all found
+                    if len(entity_positions) == 3:
+                        return entity_positions
+
+        return entity_positions
+
+    @staticmethod
+    def was_pig_caught(prize):
+        if prize > 20:
+            return True
+        return False
+
+    @staticmethod
+    def directional_steps_to_other(agent, other):
+        x_diff = other.x - agent.x
+        z_diff = other.z - agent.z
+
+        if agent.direction == 0:
+            forward = -z_diff
+            side = x_diff
+        elif agent.direction == 1:
+            forward = x_diff
+            side = z_diff
+        elif agent.direction == 2:
+            forward = z_diff
+            side = -x_diff
+        elif agent.direction == 3:
+            forward = -x_diff
+            side = -z_diff
+        else:
+            forward = side = None
+
+        return forward, side
+
+    @staticmethod
+    def direction_towards_position(own_position, other_position):
+        x_diff = other_position.x - own_position.x
+        z_diff = other_position.z - own_position.z
+
+        if abs(x_diff) > abs(z_diff):
+            if x_diff < 0:
+                return 4
+            else:
+                return 1
+        else:
+            if z_diff < 0:
+                return 0
+            else:
+                return 3
+
+    @staticmethod
+    def directional_wait_action(entity, other_position):
+        # Determine direction
+        direction = GameObserver.direction_towards_position(entity, other_position)
+
+        # Determine action
+        direction_diff = direction - entity.direction
+        while direction_diff < -2:
+            direction_diff += 4
+        while direction_diff > 2:
+            direction_diff -= 4
+        if direction_diff < 0:
+            return AllActions.turn_l
+        elif direction_diff > 0:
+            return AllActions.turn_r
+        else:
+            return AllActions.jump

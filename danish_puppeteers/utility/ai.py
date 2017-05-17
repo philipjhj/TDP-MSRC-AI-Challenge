@@ -1,7 +1,7 @@
 from collections import deque
 from heapq import heapify, heappush, heappop
 
-from utility.minecraft import AllActions
+from utility.minecraft import AllActions, DIRECTION_NAMES, EXIT_PRICE, PIG_CATCH_PRIZE
 
 
 class Location:
@@ -87,7 +87,7 @@ class EntityPosition(Location):
         return "{: >16s}(x={:d}, z={:d}, direction={})".format(self.name + "_Position",
                                                                self.x,
                                                                self.z,
-                                                               self.direction)
+                                                               DIRECTION_NAMES[self.direction])
 
     def __repr__(self):
         return str(self)
@@ -172,6 +172,37 @@ class GamePlanner:
         if direction == GamePlanner.west:
             return z - delta
         return z
+
+    @staticmethod
+    def paths_to_plans(paths, exits, pig_neighbours, moves):
+        plans = []
+        for path in paths:
+            if any([GamePlanner.matches(target, path[-1]) for target in exits]):
+                final_position = path[-1]
+                plan = Plan(target=Plan.Exit,
+                            x=final_position.x,
+                            z=final_position.z,
+                            prize=EXIT_PRICE - moves,
+                            path=path)
+                plans.append(plan)
+            elif any([GamePlanner.matches(target, path[-1]) for target in pig_neighbours]):
+                final_position = path[-1]
+                plan = Plan(target=Plan.PigCatch,
+                            x=final_position.x,
+                            z=final_position.z,
+                            prize=PIG_CATCH_PRIZE - moves,
+                            path=path)
+                plans.append(plan)
+            else:
+                final_position = path[-1]
+                plan = Plan(target=Plan.NoGoal,
+                            x=final_position.x,
+                            z=final_position.z,
+                            prize=0 - moves,
+                            path=path)
+                plans.append(plan)
+        plans = sorted(plans, key=lambda x: -x.utility)
+        return plans
 
     @staticmethod
     def neighbors(pos, actions, state=None):

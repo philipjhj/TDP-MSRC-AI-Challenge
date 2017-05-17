@@ -1,16 +1,18 @@
 from __future__ import division
 
 import cPickle as pickle
+import time
 from Queue import Queue
 from collections import OrderedDict
-from time import time
 
 import numpy as np
 from pathlib2 import Path
 
 from malmopy.agent import BaseAgent
 from utility.ai import EntityPosition, Plan, Neighbour, Location, GamePlanner
-from utility.minecraft import map_view, GameSummary, AllActions, KeysMapping
+from utility.helmet_detection import HelmetDetector, HELMET_NAMES
+from utility.minecraft import map_view, GameSummary, AllActions, KeysMapping, GameObserver, ENTITY_NAMES, EXIT_PRICE, \
+    PIG_CATCH_PRIZE
 from utility.ml import Features, FeatureSequence
 
 P_FOCUSED = .75
@@ -19,6 +21,7 @@ CELL_WIDTH = 33
 MEMORY_SIZE = 10
 
 DEBUG_STORE_IMAGE = False
+SECONDS_WAIT_BEFORE_IMAGE = 2
 
 
 def print_if(condition, string):
@@ -41,6 +44,7 @@ class Print:
     code_line_print = False
 
     # In iterations
+    helmet_detection = True
     timing = True
     iteration_line = True
     map = True
@@ -65,10 +69,6 @@ class DanishPuppet(BaseAgent):
     ACTIONS = AllActions()
     BASIC_ACTIONS = AllActions(move=(1,), strafe=())
 
-    EntityNames = ["Agent_1", "Agent_2", "Pig"]
-    PigCatchPrize = 25
-    ExitPrice = 5
-
     def __init__(self, name, visualizer=None, wait_for_pig=True):
         super(DanishPuppet, self).__init__(name, len(DanishPuppet.ACTIONS), visualizer)
         self._previous_target_pos = None
@@ -86,127 +86,22 @@ class DanishPuppet(BaseAgent):
         self.moves = -1
         self.n_games = 0
         self.n_total_moves = 0
-        self.time_start = time()
+        self.time_start = time.time()
 
         # Pig stuff
         self.previous_pig = None
         self.wait_for_pig_if_necessary = wait_for_pig
         self.pig_wait_counter = 0
 
+        # Image analysis
+        self.initial_waits = True
+        self.helmet_detector = HelmetDetector()
+        self.helmet_detector.load_classifier()
+        self.helmet_probabilities = np.ones(4)
+        self.current_challenger = None
+
     def time_alive(self):
-        return time() - self.time_start
-
-    @staticmethod
-    def parse_positions(state):
-        entity_positions = dict()
-
-        # Go through rows and columns
-        for row_nr, row in enumerate(state):
-            for col_nr, cell in enumerate(row):
-
-                # Go through entities that still have not been found
-                for entity_nr, entity in enumerate(DanishPuppet.EntityNames):
-
-                    # Check if found
-                    if entity in cell:
-                        entity_positions[entity] = (abs(col_nr), abs(row_nr))
-
-                    # Check if all found
-                    if len(entity_positions) == 3:
-                        return entity_positions
-
-        return entity_positions
-
-    @staticmethod
-    def directional_steps_to_other(agent, other):
-        x_diff = other.x - agent.x
-        z_diff = other.z - agent.z
-
-        if agent.direction == 0:
-            forward = -z_diff
-            side = x_diff
-        elif agent.direction == 1:
-            forward = x_diff
-            side = z_diff
-        elif agent.direction == 2:
-            forward = z_diff
-            side = -x_diff
-        elif agent.direction == 3:
-            forward = -x_diff
-            side = -z_diff
-        else:
-            forward = side = None
-
-        return forward, side
-
-    def paths_to_plans(self, paths, exits, pig_neighbours):
-        plans = []
-        for path in paths:
-            if any([GamePlanner.matches(target, path[-1]) for target in exits]):
-                final_position = path[-1]
-                plan = Plan(target=Plan.Exit,
-                            x=final_position.x,
-                            z=final_position.z,
-                            prize=DanishPuppet.ExitPrice - self.moves,
-                            path=path)
-                plans.append(plan)
-            elif any([GamePlanner.matches(target, path[-1]) for target in pig_neighbours]):
-                final_position = path[-1]
-                plan = Plan(target=Plan.PigCatch,
-                            x=final_position.x,
-                            z=final_position.z,
-                            prize=DanishPuppet.PigCatchPrize - self.moves,
-                            path=path)
-                plans.append(plan)
-            else:
-                final_position = path[-1]
-                plan = Plan(target=Plan.NoGoal,
-                            x=final_position.x,
-                            z=final_position.z,
-                            prize=0 - self.moves,
-                            path=path)
-                plans.append(plan)
-        plans = sorted(plans, key=lambda x: -x.utility)
-        return plans
-
-    @staticmethod
-    def direction_towards_position(own_position, other_position):
-        x_diff = other_position.x - own_position.x
-        z_diff = other_position.z - own_position.z
-
-        if abs(x_diff) > abs(z_diff):
-            if x_diff < 0:
-                return 4
-            else:
-                return 1
-        else:
-            if z_diff < 0:
-                return 0
-            else:
-                return 3
-
-    def directional_wait_action(self, entity, other_position):
-        # Determine direction
-        direction = self.direction_towards_position(entity, other_position)
-
-        # Determine action
-        direction_diff = direction - entity.direction
-        while direction_diff < -2:
-            direction_diff += 4
-        while direction_diff > 2:
-            direction_diff -= 4
-        if direction_diff < 0:
-            return AllActions.turn_l
-        elif direction_diff > 0:
-            return AllActions.turn_r
-        else:
-            return AllActions.jump
-
-    @staticmethod
-    def was_pig_caught(prize):
-        if prize > 20:
-            return True
-        return False
+        return time.time() - self.time_start
 
     def note_game_end(self, reward_sequence, state):
         if self.history_queue.full():
@@ -219,7 +114,7 @@ class DanishPuppet(BaseAgent):
                                    reward=reward,
                                    prize=prize,
                                    final_state=state,
-                                   pig_is_caught=self.was_pig_caught(prize=prize))
+                                   pig_is_caught=GameObserver.was_pig_caught(prize=prize))
 
         if Print.game_summary:
             print("\nGame Summary:")
@@ -234,10 +129,10 @@ class DanishPuppet(BaseAgent):
             print("DanishPuppet.act() called")
 
         ###############################################################################
-        # Get information from environment
-        print_if(Print.code_line_print, "CODE: Information parsing")
+        # Initializations
 
         if done:
+            print_if(Print.code_line_print, "CODE: Initialization")
             if self.first_act_call:
 
                 if Print.history_length:
@@ -247,6 +142,9 @@ class DanishPuppet(BaseAgent):
                 self._previous_target_pos = None
                 self.game_features = None
                 self.moves = -1
+                self.helmet_probabilities = np.ones(4)
+                self.current_challenger = None
+                self.initial_waits = True
 
                 self.n_games += 1
 
@@ -262,6 +160,20 @@ class DanishPuppet(BaseAgent):
         else:
             self.first_act_call = True
 
+        ###############################################################################
+        # If pig is not in a useful place - wait
+        print_if(Print.code_line_print, "CODE: Considering pregame-wait")
+
+        if self.initial_waits:
+            print("\nHold your horses.\n")
+            time.sleep(SECONDS_WAIT_BEFORE_IMAGE)
+            self.initial_waits = False
+            return DanishPuppet.ACTIONS.wait
+
+        ###############################################################################
+        # Get information from environment
+        print_if(Print.code_line_print, "CODE: Information parsing")
+
         # TODO: WHY IS THIS HERE?!?
         if state is None:
             return np.random.randint(0, self.nb_actions)
@@ -274,14 +186,14 @@ class DanishPuppet(BaseAgent):
             print("\n---------------------------\n")
 
         # Parse positions from grid
-        positions = self.parse_positions(state)
+        positions = GameObserver.parse_positions(state)
         for idx, entity in enumerate(entities):
             entity['x'] = positions[entity['name']][0]
             entity['z'] = positions[entity['name']][1]
 
         # Initialize entities information
         if self._entities is None:
-            self._entities = OrderedDict((name, None) for name in DanishPuppet.EntityNames)
+            self._entities = OrderedDict((name, None) for name in ENTITY_NAMES)
             for item in entities:
                 self._entities[item['name']] = EntityPosition(name=item['name'], yaw=item['yaw'],
                                                               x=item['x'], z=item['z'])
@@ -304,7 +216,7 @@ class DanishPuppet(BaseAgent):
                 print(item)
 
         if Print.steps_to_other:
-            print("Steps to challenger: {}".format(self.directional_steps_to_other(me, challenger)))
+            print("Steps to challenger: {}".format(GameObserver.directional_steps_to_other(me, challenger)))
 
         if DEBUG_STORE_IMAGE:
             storage_path = Path("..", "data_dumps")
@@ -315,7 +227,7 @@ class DanishPuppet(BaseAgent):
             except ValueError:
                 next_file_number = 0
 
-            data_file = ((me, challenger, pig), self.directional_steps_to_other(me, challenger), state, frame)
+            data_file = ((me, challenger, pig), GameObserver.directional_steps_to_other(me, challenger), state, frame)
 
             pickle.dump(data_file, Path(storage_path, "file_{}.p".format(next_file_number)).open("wb"))
 
@@ -355,14 +267,16 @@ class DanishPuppet(BaseAgent):
                                                    goals=targets,
                                                    state=state,
                                                    actions=list(DanishPuppet.ACTIONS))[0]
-        own_plans = self.paths_to_plans(own_paths, exits, pig_neighbours)
+        own_plans = GamePlanner.paths_to_plans(paths=own_paths, exits=exits,
+                                               pig_neighbours=pig_neighbours, moves=self.moves)
 
         # Find challengers paths
         challengers_paths = GamePlanner.astar_multi_search(start=challenger,
                                                            goals=targets,
                                                            state=state,
                                                            actions=list(DanishPuppet.BASIC_ACTIONS))[0]
-        challengers_plans = self.paths_to_plans(challengers_paths, exits, pig_neighbours)
+        challengers_plans = GamePlanner.paths_to_plans(paths=challengers_paths, exits=exits,
+                                                       pig_neighbours=pig_neighbours, moves=self.moves)
 
         if Print.own_plans:
             print("\nOwn {} plans:".format(len(own_paths)))
@@ -399,6 +313,34 @@ class DanishPuppet(BaseAgent):
             return DanishPuppet.ACTIONS.wait
         self.waiting_for_pig = False
         self.pig_wait_counter = 0
+
+        ###############################################################################
+        # Detect helmet
+
+        # Detect helmet
+        _, probabilities = self.helmet_detector.predict_helmet(frame)
+
+        # Check if on top of challenger
+        if not GamePlanner.matches(me, challenger):
+            # Check if helmet was seen
+            if probabilities is not None:
+                probabilities = np.array(probabilities)
+
+                # Update probabilities of round
+                self.helmet_probabilities = np.squeeze(self.helmet_probabilities * probabilities, axis=0)
+                self.helmet_probabilities /= self.helmet_probabilities.sum()
+
+        # Print information
+        if Print.helmet_detection:
+            sorted_probabilities = sorted([val for val in self.helmet_probabilities])
+            decision_made = not np.isclose(sorted_probabilities[-1], sorted_probabilities[-2])
+
+            if decision_made:
+                self.current_challenger = np.argmax(self.helmet_probabilities)
+                print("\nHelmet detected. Number {} ({})".format(self.current_challenger,
+                                                                 HELMET_NAMES[self.current_challenger]))
+            else:
+                print("\nHelmet not detected.")
 
         ###############################################################################
         # Feature Extraction
@@ -445,7 +387,8 @@ class DanishPuppet(BaseAgent):
                                                                            goals=[self.previous_pig],
                                                                            state=state,
                                                                            actions=list(DanishPuppet.BASIC_ACTIONS))
-                alternative_plans = self.paths_to_plans(plans_to_new_pig_position, exits, pig_neighbours)
+                alternative_plans = GamePlanner.paths_to_plans(paths=plans_to_new_pig_position, exits=exits,
+                                                               pig_neighbours=pig_neighbours, moves=self.moves)
 
                 challenger_pig_distance = min(challenger_pig_distance,
                                               *[plan.plan_length() for plan in alternative_plans])
@@ -571,8 +514,8 @@ class DanishPuppet(BaseAgent):
             if len(own_pig_plan) < 2:
                 if Print.waiting_info:
                     print("\nWaiting for challenger to help with pig ...")
-                return self.directional_wait_action(entity=self._entities["Agent_2"],
-                                                    other_position=self._entities["Agent_1"])
+                return GameObserver.directional_wait_action(entity=self._entities["Agent_2"],
+                                                            other_position=self._entities["Agent_1"])
 
             # Return next action (0th element is current position)
             action = own_pig_plan[1].action

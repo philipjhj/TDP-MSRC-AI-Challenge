@@ -6,6 +6,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib2 import Path
 from sklearn import svm
+import warnings
+
+
+# Helmet names
+HELMET_NAMES = [
+    "iron_helmet",
+    "golden_helmet",
+    "diamond_helmet",
+    "leather_helmet"
+]
 
 
 class HelmetDetector:
@@ -134,7 +144,9 @@ class HelmetDetector:
 
         if helmet_pixels is not None:
             helmet_rgb = helmet_pixels.mean(axis=0)
-            helmet_hsv = np.array([colorsys.rgb_to_hsv(*item) for item in helmet_pixels])
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                helmet_hsv = np.array([colorsys.rgb_to_hsv(*item) for item in helmet_pixels])
             helmet_hsv = helmet_hsv.mean(axis=0)
             helmet_features = np.hstack([helmet_rgb, helmet_hsv])
 
@@ -178,14 +190,6 @@ if __name__ == "__main__":
     random.shuffle(all_idxs)
     all_idxs = (val for val in all_idxs)
 
-    # Helmet names
-    helmet_names = [
-        "iron_helmet",
-        "golden_helmet",
-        "diamond_helmet",
-        "leather_helmet"
-    ]
-
     # Helmet examples
     helmet_examples = [
         Path(r"..\data\hat_0\file_21.p"),
@@ -215,7 +219,7 @@ if __name__ == "__main__":
     title = "Image without helmet"
     plt.title(title)
     if most_probable_hat is not None:
-        title = "Image with helmet {} \n({})".format(most_probable_hat, helmet_names[most_probable_hat])
+        title = "Image with helmet {} \n({})".format(most_probable_hat, HELMET_NAMES[most_probable_hat])
 
         plt.title(title)
 

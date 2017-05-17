@@ -22,6 +22,7 @@ from datetime import datetime
 from threading import Thread, active_count
 from time import sleep
 
+from agent import FocusedAgent
 from bad_guy import BadGuy
 from challenger_factory import ChallengerFactory
 from danish_puppet import DanishPuppet
@@ -45,16 +46,17 @@ sys.path.insert(1, os.path.join(os.path.pardir, os.getcwd()))
 BASELINES_FOLDER = 'results/baselines/pig_chase/%s/%s'
 EPOCH_SIZE = 100
 
-MANUAL = False
-HUMAN_SPEED = False
-WAIT_FOR_PIG = True
+MANUAL = True
+HUMAN_SPEED = True
+WAIT_FOR_PIG = False
 
 PASS_FRAME = True
 
 AGENT_TYPE = {
     RandomAgent: PigChaseEnvironment.AGENT_TYPE_0,
     StandstillAgent: PigChaseEnvironment.AGENT_TYPE_1,
-    BadGuy: PigChaseEnvironment.AGENT_TYPE_2
+    BadGuy: PigChaseEnvironment.AGENT_TYPE_2,
+    FocusedAgent: PigChaseEnvironment.AGENT_TYPE_3
 }
 
 
@@ -77,7 +79,7 @@ def agent_factory(name, role, clients, max_epochs,
 
     # Challenger  (Agent_1)
     if role == 0:
-        agent = ChallengerFactory(name, focused=True, random=True, bad_guy=False)
+        agent = ChallengerFactory(name, focused=True, random=True, bad_guy=True, standstill=True)
 
         agent_type = get_agent_type(agent.current_agent)
         state = env.reset(agent_type)

@@ -24,15 +24,16 @@ from agent import FocusedAgent
 from bad_guy import BadGuy
 from common import ENV_TARGET_NAMES, ENV_ACTIONS
 from malmopy.agent import BaseAgent, RandomAgent
-
+from standstill_agent import StandstillAgent
 
 FocusedAgentWeight = 2
 RandomAgentWeight = 1
 BadGuyWeight = 1
+StandstillAgentWeight = 1
 
 
 class ChallengerFactory(BaseAgent):
-    def __init__(self, name, visualizer=None, focused=True, random=True, bad_guy=True):
+    def __init__(self, name, visualizer=None, focused=True, random=True, bad_guy=True, standstill=False):
         nb_actions = len(ENV_ACTIONS)
         super(ChallengerFactory, self).__init__(name, nb_actions,
                                                 visualizer=visualizer)
@@ -46,15 +47,22 @@ class ChallengerFactory(BaseAgent):
                                              visualizer=visualizer))
             self._agent_probabilities.append(FocusedAgentWeight)
             print("   FocusedAgent")
+
         if random:
             self._agents.append(RandomAgent(name, nb_actions,
                                             visualizer=visualizer))
             self._agent_probabilities.append(RandomAgentWeight)
             print("   RandomAgent")
+
         if bad_guy:
             self._agents.append(BadGuy(name, visualizer=visualizer))
             self._agent_probabilities.append(BadGuyWeight)
             print("   BadGuy")
+
+        if standstill:
+            self._agents.append(StandstillAgent(name, visualizer=visualizer))
+            self._agent_probabilities.append(StandstillAgentWeight)
+            print("   StandstillAgent")
 
         # Select first agent
         n = sum(self._agent_probabilities)
