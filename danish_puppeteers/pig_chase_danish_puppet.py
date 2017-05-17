@@ -22,6 +22,8 @@ from datetime import datetime
 from threading import Thread, active_count
 from time import sleep
 
+from bad_guy import BadGuy
+from challenger_factory import ChallengerFactory
 from danish_puppet import DanishPuppet
 from malmopy.agent import RandomAgent
 from standstill_agent import StandstillAgent
@@ -34,7 +36,6 @@ except ImportError:
     from malmopy.visualization import ConsoleVisualizer
 
 from common import parse_clients_args, visualize_training, ENV_AGENT_NAMES
-from agent import PigChaseChallengeAgent
 from environment import PigChaseEnvironment, PigChaseSymbolicStateBuilder
 
 # Enforce path
@@ -44,42 +45,39 @@ sys.path.insert(1, os.path.join(os.path.pardir, os.getcwd()))
 BASELINES_FOLDER = 'results/baselines/pig_chase/%s/%s'
 EPOCH_SIZE = 100
 
-MANUAL = True
-HUMAN_SPEED = True
-USE_STANDSTILL_AGENT = True
-WAIT_FOR_PIG = False
+MANUAL = False
+HUMAN_SPEED = False
+WAIT_FOR_PIG = True
 
 PASS_FRAME = True
 
 AGENT_TYPE = {
-    RandomAgent: PigChaseEnvironment.AGENT_TYPE_1,
-    StandstillAgent: PigChaseEnvironment.AGENT_TYPE_0
+    RandomAgent: PigChaseEnvironment.AGENT_TYPE_0,
+    StandstillAgent: PigChaseEnvironment.AGENT_TYPE_1,
+    BadGuy: PigChaseEnvironment.AGENT_TYPE_2
 }
+
 
 def get_agent_type(agent):
     return AGENT_TYPE.get(type(agent),
-                          PigChaseEnvironment.AGENT_TYPE_2)
+                          PigChaseEnvironment.AGENT_TYPE_3)
 
 
 def agent_factory(name, role, clients, max_epochs,
                   logdir, visualizer, manual=False):
-
     assert len(clients) >= 2, 'Not enough clients (need at least 2)'
     clients = parse_clients_args(clients)
 
     builder = PigChaseSymbolicStateBuilder()
     env = PigChaseEnvironment(clients, builder,
-                              actions=DanishPuppet.ACTIONS,
+                              actions=DanishPuppet.ACTIONS.all_commands(),
                               role=role,
                               human_speed=HUMAN_SPEED,
                               randomize_positions=True)
 
     # Challenger  (Agent_1)
     if role == 0:
-        if USE_STANDSTILL_AGENT:
-            agent = StandstillAgent(name=name, rotate=True)
-        else:
-            agent = PigChaseChallengeAgent(name)
+        agent = ChallengerFactory(name, focused=True, random=True, bad_guy=False)
 
         agent_type = get_agent_type(agent.current_agent)
         state = env.reset(agent_type)
@@ -115,7 +113,7 @@ def agent_factory(name, role, clients, max_epochs,
         viz_rewards = []
 
         max_training_steps = EPOCH_SIZE * max_epochs
-        for step in range(1, max_training_steps+1):
+        for step in range(1, max_training_steps + 1):
 
             # check if env needs reset
             if env.done:
@@ -138,7 +136,7 @@ def agent_factory(name, role, clients, max_epochs,
                                    frame=frame)
 
                 # 'wait'
-                if action == DanishPuppet.ACTIONS.index("wait"):
+                if action == DanishPuppet.ACTIONS.wait:
                     action = None
                     sleep(4e-3)
                     state = env.state
@@ -151,8 +149,8 @@ def agent_factory(name, role, clients, max_epochs,
 
 
 def run_experiment(agents_def):
-    assert len(agents_def) == 2, 'Not enough agents (required: 2, got: %d)'\
-                % len(agents_def)
+    assert len(agents_def) == 2, 'Not enough agents (required: 2, got: %d)' \
+                                 % len(agents_def)
 
     processes = []
     for agent in agents_def:
@@ -203,4 +201,3 @@ if __name__ == '__main__':
               for role, agent in enumerate(ENV_AGENT_NAMES)]
 
     run_experiment(agents)
-

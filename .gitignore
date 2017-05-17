@@ -3,3 +3,7 @@ data_dumps/*
 temp/**
 danish_puppeteers/results/*
 data/**
+
+danish_puppeteers/*.pyc
+danish_puppeteers/*/*.pyc
+danish_puppeteers/*.pyc

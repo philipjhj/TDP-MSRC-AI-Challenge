@@ -2,12 +2,12 @@ from __future__ import division
 
 import random
 
-from danish_puppet import DanishPuppet
 from malmopy.agent import BaseAgent
+from utility.minecraft import AllActions
 
 
 class StandstillAgent(BaseAgent):
-    ActionMap = DanishPuppet.ActionMap
+    ActionMap = AllActions(move=(), turn=(1, -1), strafe=(), jump=False, wait=False)
 
     def __init__(self, name, visualizer=None, rotate=True):
         self.rotate = rotate
