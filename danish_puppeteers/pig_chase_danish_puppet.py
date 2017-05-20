@@ -46,8 +46,8 @@ sys.path.insert(1, os.path.join(os.path.pardir, os.getcwd()))
 BASELINES_FOLDER = 'results/baselines/pig_chase/%s/%s'
 EPOCH_SIZE = 100
 
-MANUAL = True
-HUMAN_SPEED = True
+MANUAL = False
+HUMAN_SPEED = False
 WAIT_FOR_PIG = False
 
 PASS_FRAME = True
