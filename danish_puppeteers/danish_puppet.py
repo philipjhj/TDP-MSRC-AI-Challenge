@@ -21,6 +21,8 @@ from utility.ml import FeatureSequence
 #   TODO: It will cost an action, but may avoid the server crashing.
 
 # TODO: Make the following input to the agent's constructor
+from utility.util import ensure_folder
+
 SUMMARY_HISTORY_SIZE = 10
 
 SAMPLES_IN_MEMORY = 100
@@ -148,7 +150,9 @@ class DanishPuppet(BaseAgent):
         self.game_features_history.append(self.game_features)
         if len(self.game_features_history) > SAMPLES_IN_MEMORY:
             print("Storing data-history.")
-            pickle.dump(self.game_features_history, Path("../data_dumps/game_features_history.p").open("wb"))
+            folder_path = Path("..", "data_dumps")
+            ensure_folder(folder_path)
+            pickle.dump(self.game_features_history, Path(folder_path, "game_features_history.p").open("wb"))
             self.game_features_history = random.sample(self.game_features_history,
                                                        int(SAMPLES_IN_MEMORY * 0.95))
 

@@ -1,17 +1,15 @@
 import cPickle as pickle
 import colorsys
 import random
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib2 import Path
 from sklearn import svm
-import warnings
 
 
-# Helmet names
 from ai import GamePlanner
-from minecraft import GameObserver
 
 HELMET_NAMES = [
     "iron_helmet",
@@ -22,6 +20,11 @@ HELMET_NAMES = [
 
 
 class HelmetDetector:
+    """
+    Class used for detecting helmet in the game.
+    Very domain-specific and trained on data from this game.
+    Uses an SVM for classifying helmets and can only detect the four helmet found in the pig-chase environment. 
+    """
     def __init__(self, retrain=False, storage_path="../storage"):
         self.hats = list(range(4))
         self.classifier = None
