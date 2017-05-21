@@ -6,7 +6,8 @@ import numpy as np
 
 from malmopy.agent import BaseAgent
 from utility.ai import EntityPosition, Neighbour, GamePlanner
-from utility.minecraft import AllActions, ENTITY_NAMES, GameObserver
+from utility.minecraft import GameObserver
+from constants import ENTITY_NAMES, AllActions
 
 
 class BadGuy(BaseAgent):

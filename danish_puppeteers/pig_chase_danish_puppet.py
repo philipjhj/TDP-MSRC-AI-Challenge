@@ -46,8 +46,9 @@ sys.path.insert(1, os.path.join(os.path.pardir, os.getcwd()))
 BASELINES_FOLDER = 'results/baselines/pig_chase/%s/%s'
 EPOCH_SIZE = 100
 
-MANUAL = False
-HUMAN_SPEED = False
+USE_MARKOV = True
+MANUAL = True
+HUMAN_SPEED = True
 WAIT_FOR_PIG = False
 
 PASS_FRAME = True
@@ -60,8 +61,8 @@ AGENT_TYPE = {
 }
 
 
-def get_agent_type(agent):
-    return AGENT_TYPE.get(type(agent),
+def get_agent_type(c_agent):
+    return AGENT_TYPE.get(type(c_agent),
                           PigChaseEnvironment.AGENT_TYPE_3)
 
 
@@ -79,9 +80,9 @@ def agent_factory(name, role, clients, max_epochs,
 
     # Challenger  (Agent_1)
     if role == 0:
-        agent = ChallengerFactory(name, focused=True, random=True, bad_guy=True, standstill=True)
+        c_agent = ChallengerFactory(name, focused=True, random=True, bad_guy=True, standstill=True)
 
-        agent_type = get_agent_type(agent.current_agent)
+        agent_type = get_agent_type(c_agent.current_agent)
         state = env.reset(agent_type)
 
         reward = 0
@@ -90,24 +91,25 @@ def agent_factory(name, role, clients, max_epochs,
         while True:
 
             # select an action
-            action = agent.act(state, reward, agent_done, is_training=True)
+            action = c_agent.act(state, reward, agent_done, is_training=True)
 
             # reset if needed
             if env.done:
-                agent_type = get_agent_type(agent.current_agent)
-                state = env.reset(agent_type)
+                agent_type = get_agent_type(c_agent.current_agent)
+                _ = env.reset(agent_type)
 
             # take a step
             state, reward, agent_done = env.do(action)
 
     # Our Agent (Agent_2)
     else:
-        agent = DanishPuppet(name=name,
-                             wait_for_pig=WAIT_FOR_PIG)
+        c_agent = DanishPuppet(name=name,
+                               wait_for_pig=WAIT_FOR_PIG,
+                               use_markov=USE_MARKOV)
 
         # Manual overwrite!
         if manual:
-            agent.manual = True
+            c_agent.manual = True
 
         state = env.reset()
         reward = 0
@@ -119,8 +121,8 @@ def agent_factory(name, role, clients, max_epochs,
 
             # check if env needs reset
             if env.done:
-                agent.note_game_end(reward_sequence=viz_rewards,
-                                    state=state[0])
+                c_agent.note_game_end(reward_sequence=viz_rewards,
+                                      state=state[0])
                 print("")
                 visualize_training(visualizer, step, viz_rewards)
                 viz_rewards = []
@@ -133,9 +135,9 @@ def agent_factory(name, role, clients, max_epochs,
                 # for key, item in env.world_observations.items():
                 #     print(key, ":", item)
 
-                action = agent.act(state, reward, agent_done,
-                                   is_training=True,
-                                   frame=frame)
+                action = c_agent.act(state, reward, agent_done,
+                                     is_training=True,
+                                     frame=frame)
 
                 # 'wait'
                 if action == DanishPuppet.ACTIONS.wait:
@@ -147,7 +149,7 @@ def agent_factory(name, role, clients, max_epochs,
             state, reward, agent_done = env.do(action)
             viz_rewards.append(reward)
 
-            agent.inject_summaries(step)
+            c_agent.inject_summaries(step)
 
 
 def run_experiment(agents_def):

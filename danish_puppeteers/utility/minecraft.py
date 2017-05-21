@@ -1,15 +1,7 @@
-DIRECTION_NAMES = [
-    "north",
-    "east",
-    "south",
-    "west"
-]
+from collections import OrderedDict
 
-ENTITY_NAMES = ["Agent_1", "Agent_2", "Pig"]
-
-
-PIG_CATCH_PRIZE = 25
-EXIT_PRICE = 5
+from ai import EntityPosition, Neighbour, Location, GamePlanner
+from constants import ENTITY_NAMES, AllActions
 
 
 def map_view(state):
@@ -53,127 +45,13 @@ class GameSummary:
         return str(self)
 
 
-class AllActions:
-    move_f = 0
-    turn_l = 1
-    turn_r = 2
-    move_b = 3
-    strafe_r = 4
-    strafe_l = 5
-    jump = 6
-    wait = 7
-
-    _action2command = {
-        move_f: "move 1",
-        turn_l: "turn -1",
-        turn_r: "turn 1",
-        move_b: "move -1",
-        strafe_r: "strafe 1",
-        strafe_l: "strafe -1",
-        jump: "jump 1",
-        wait: "wait"
-    }
-
-    @staticmethod
-    def is_move(action):
-        return action in {AllActions.move_f, AllActions.move_b}
-
-    @staticmethod
-    def is_turn(action):
-        return action in {AllActions.turn_l, AllActions.turn_r}
-
-    @staticmethod
-    def is_strafe(action):
-        return action in {AllActions.strafe_l, AllActions.strafe_r}
-
-    @staticmethod
-    def sign(action):
-        if action in {AllActions.turn_l, AllActions.move_b, AllActions.strafe_l}:
-            return -1
-        else:
-            return 1
-
-    @staticmethod
-    def all_commands():
-        return [AllActions._action2command[idx] for idx in range(8)]
-
-    @staticmethod
-    def all_actions():
-        return list(range(8))
-
-    @staticmethod
-    def action_to_command(action):
-        return AllActions._action2command[action]
-
-    def __iter__(self):
-        for action in self._actions:
-            yield action
-
-    def __init__(self, move=(1, -1), turn=(1, -1), strafe=(1, -1), jump=False, wait=False):
-        self._actions = []
-
-        # Move forth and back
-        if 1 in move:
-            self._actions.append(AllActions.move_f)
-        if -1 in move:
-            self._actions.append(AllActions.move_b)
-
-        # Turn
-        if 1 in turn:
-            self._actions.append(AllActions.turn_r)
-        if -1 in turn:
-            self._actions.append(AllActions.turn_l)
-
-        # Strafe
-        if 1 in strafe:
-            self._actions.append(AllActions.strafe_r)
-        if -1 in strafe:
-            self._actions.append(AllActions.strafe_l)
-
-        # Jump
-        if jump:
-            self._actions.append(AllActions.jump)
-
-        # Wait
-        if wait:
-            self._actions.append(AllActions.wait)
-
-    def __len__(self):
-        return len(self._actions)
-
-
-KeysMapping = {'L': AllActions.turn_l,
-               'l': AllActions.turn_l,
-               'R': AllActions.turn_r,
-               'r': AllActions.turn_r,
-               'U': AllActions.move_f,
-               'u': AllActions.move_f,
-               'F': AllActions.move_f,
-               'f': AllActions.move_f,
-               'B': AllActions.move_b,
-               'b': AllActions.move_b,
-               # AWSD + QE
-               "a": AllActions.strafe_l,
-               "A": AllActions.strafe_l,
-               "w": AllActions.move_f,
-               "W": AllActions.move_f,
-               "s": AllActions.move_b,
-               "S": AllActions.move_b,
-               "d": AllActions.strafe_r,
-               "D": AllActions.strafe_r,
-               'q': AllActions.turn_l,
-               'Q': AllActions.turn_l,
-               'e': AllActions.turn_r,
-               'E': AllActions.turn_r,
-               # Jump
-               ' ': AllActions.jump,
-               # No-op
-               "n": AllActions.wait,
-               "N": AllActions.wait,
-               }
-
-
 class GameObserver:
+    def __init__(self):
+        self._entities = None
+
+    def reset(self):
+        self._entities = None
+
     @staticmethod
     def parse_positions(state):
         entity_positions = dict()
@@ -256,3 +134,67 @@ class GameObserver:
             return AllActions.turn_r
         else:
             return AllActions.jump
+
+    def get_entities(self):
+        for key, val in self._entities.values():
+            yield key, val
+
+    def create_entity_positions(self, state, entities):
+        # Parse positions from grid
+        positions = GameObserver.parse_positions(state)
+        for idx, entity in enumerate(entities):
+            entity['x'] = positions[entity['name']][0]
+            entity['z'] = positions[entity['name']][1]
+
+        # Initialize entities information
+        if self._entities is None:
+            self._entities = OrderedDict((name, None) for name in ENTITY_NAMES)
+            for item in entities:
+                self._entities[item['name']] = EntityPosition(name=item['name'], yaw=item['yaw'],
+                                                              x=item['x'], z=item['z'])
+        else:
+            for item in entities:
+                # print(item)
+                self._entities[item['name']].update(name=item['name'], yaw=item['yaw'],
+                                                    x=item['x'], z=item['z'])
+
+        # Entities
+        me = self._entities['Agent_2']  # type: EntityPosition
+        challenger = self._entities['Agent_1']  # type: EntityPosition
+        pig = self._entities['Pig']  # type: EntityPosition
+
+        # Return
+        return me, challenger, pig
+
+    @staticmethod
+    def determine_targets(state, pig):
+        # Exist positions
+        exits = [Neighbour(x=1, z=4, direction=0, action=""),
+                 Neighbour(x=7, z=4, direction=0, action="")]
+
+        # Get pig position
+        pig_node = Location(pig.x, pig.z)
+
+        # Get neighbours
+        pig_neighbours = []
+        neighbour_cells = []
+        for x_diff, z_diff in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            new_position = (pig_node.x + x_diff, pig_node.z + z_diff)
+            if "grass" in state[new_position[1], new_position[0]]:
+                pig_neighbours.append(Location(*new_position))
+                neighbour_cells.append(state[new_position[0], new_position[1]])
+
+        return pig_neighbours, exits
+
+    @staticmethod
+    def search_for_plans(start, exits, pig_neighbours, moves, state, actions):
+        goals = exits + pig_neighbours
+        paths, _ = GamePlanner.astar_multi_search(start=start,
+                                                  goals=goals,
+                                                  state=state,
+                                                  actions=actions)
+        plans = GamePlanner.paths_to_plans(paths=paths,
+                                           exits=exits,
+                                           pig_neighbours=pig_neighbours,
+                                           moves=moves)
+        return plans

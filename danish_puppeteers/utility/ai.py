@@ -1,13 +1,14 @@
 from collections import deque
 from heapq import heapify, heappush, heappop
 
-from utility.minecraft import AllActions, DIRECTION_NAMES, EXIT_PRICE, PIG_CATCH_PRIZE
+from constants import DIRECTION_NAMES, PIG_CATCH_PRIZE, EXIT_PRICE, AllActions
 
 
 class Location:
     """
     Holds a location in the game. Basically works as a named tuple of x- and z-coordinates. 
     """
+
     def __init__(self, x, z):
         self.x = x
         self.z = z
@@ -59,6 +60,7 @@ class EntityPosition(Location):
     """
     Expansion of Location to also hold direction and name of an entity. 
     """
+
     def __init__(self, name, yaw, x, z):
         Location.__init__(self, x, z)
         self.name = name

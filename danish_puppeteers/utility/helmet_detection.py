@@ -10,6 +10,9 @@ import warnings
 
 
 # Helmet names
+from ai import GamePlanner
+from minecraft import GameObserver
+
 HELMET_NAMES = [
     "iron_helmet",
     "golden_helmet",
@@ -19,9 +22,10 @@ HELMET_NAMES = [
 
 
 class HelmetDetector:
-    def __init__(self, retrain=False, storage_path="../danish_puppeteers/storage"):
+    def __init__(self, retrain=False, storage_path="../storage"):
         self.hats = list(range(4))
         self.classifier = None
+        self.helmet_probabilities = np.ones(4)
 
         # Get base-sky
         path = Path(storage_path, "base_sky.p")
@@ -32,6 +36,9 @@ class HelmetDetector:
         # If set to train
         if retrain:
             self.train_from_path()
+
+    def reset(self):
+        self.helmet_probabilities = np.ones(4)
 
     def train_from_path(self, data_path=None):
         if data_path is None:
@@ -82,7 +89,7 @@ class HelmetDetector:
             path = Path("..", "danish_puppeteers", "storage", "helmet_classifier.p")
         self.classifier = pickle.load(path.open("rb"))
 
-    def predict_helmet(self, frame):
+    def _helmet_probabilities(self, frame):
         # Get features
         current_features = self.get_helmet_features(frame, self.base_sky)
 
@@ -100,6 +107,25 @@ class HelmetDetector:
 
             # Return
             return most_probable_hat, probabilities
+
+    @staticmethod
+    def store_snapshot(me, challenger, pig, state, frame,
+                       storage_path="../data_dumps"):
+        storage_path = Path(storage_path)
+
+        # Find next file-id
+        files_in_directory = [str(item.stem) for item in storage_path.glob("*.p")]
+        try:
+            next_file_number = max([int(item.replace("file_", ""))
+                                    for item in files_in_directory]) + 1
+        except ValueError:
+            next_file_number = 0
+
+        # Data to be stored
+        data_file = ((me, challenger, pig), GameObserver.directional_steps_to_other(me, challenger), state, frame)
+
+        # Make data-dump
+        pickle.dump(data_file, Path(storage_path, "file_{}.p".format(next_file_number)).open("wb"))
 
     @staticmethod
     def to_matrix(a_frame):
@@ -155,6 +181,33 @@ class HelmetDetector:
 
         return helmet_features
 
+    def detect_helmet(self, me, challenger, frame):
+        if not GamePlanner.matches(me, challenger):
+            # Detect helmet
+            _, probabilities = self._helmet_probabilities(frame)
+
+            # Check if helmet was seen
+            if probabilities is not None:
+                probabilities = np.array(probabilities)
+
+                # Update probabilities of round
+                self.helmet_probabilities = np.squeeze(self.helmet_probabilities * probabilities, axis=0)
+                self.helmet_probabilities /= self.helmet_probabilities.sum()
+
+        # Determine most probably helmet
+        sorted_probabilities = sorted([val for val in self.helmet_probabilities])
+        decision_made = not np.isclose(sorted_probabilities[-1], sorted_probabilities[-2])
+
+        # Get most likely helmet
+        if decision_made:
+            current_challenger = np.argmax(self.helmet_probabilities)
+        else:
+            current_challenger = None
+
+        return current_challenger, self.helmet_probabilities, decision_made
+
+
+
 
 if __name__ == "__main__":
 
@@ -209,7 +262,7 @@ if __name__ == "__main__":
     frame = detector.to_matrix(frame)
     sky = detector.get_sky(frame)
 
-    most_probable_hat, probabilities = detector.predict_helmet(frame)
+    most_probable_hat, probabilities = detector._helmet_probabilities(frame)
 
     # Plot image
     ax = plt.subplot(2, 2, 2)  # type: plt.Axes
