@@ -22,13 +22,8 @@ from datetime import datetime
 from threading import Thread, active_count
 from time import sleep
 
-from agent import FocusedAgent
-from bad_guy import BadGuy
 from challenger_factory import ChallengerFactory
 from danish_puppet import DanishPuppet
-from malmopy.agent import RandomAgent
-from standstill_agent import StandstillAgent
-import numpy as np
 
 try:
     from malmopy.visualization.tensorboard import TensorboardVisualizer

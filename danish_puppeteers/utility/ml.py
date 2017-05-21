@@ -1,6 +1,5 @@
 import numpy as np
 
-from ai import Plan
 from constants import CellGoalType
 
 

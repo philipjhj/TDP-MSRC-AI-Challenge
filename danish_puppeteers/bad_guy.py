@@ -4,7 +4,7 @@ from collections import namedtuple, OrderedDict
 
 import numpy as np
 
-from constants import AllActions, EntityNames
+from utility.constants import AllActions, EntityNames
 from malmopy.agent import BaseAgent
 from utility.ai import EntityPosition, SearchNode, GamePlanner
 from utility.minecraft import GameObserver

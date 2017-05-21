@@ -3,7 +3,7 @@ from __future__ import division
 import random
 
 from malmopy.agent import BaseAgent
-from constants import AllActions
+from utility.constants import AllActions
 
 
 class StandstillAgent(BaseAgent):

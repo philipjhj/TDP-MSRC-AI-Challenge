@@ -4,6 +4,9 @@ EXIT_PRICE = 5
 
 
 class EntityNames:
+    """
+    Holds the names of in-game entities.
+    """
     challenger = "Agent_1"
     me = "Agent_2"
     pig = "Pig"
@@ -22,6 +25,9 @@ class EntityNames:
 
 
 class Direction:
+    """
+    The directions of the game.
+    """
     north, east, south, west = range(4)
 
     class __metaclass__(type):
@@ -30,12 +36,19 @@ class Direction:
 
 
 class CellGoalType:
+    """
+    Cells can be either an Exit-cell, a PigCatch-cell (next to the pig) of a NoGoal-cell.
+    """
     Exit = "Exit"
     PigCatch = "PigCatch"
     NoGoal = "None"
 
 
 class AllActions:
+    """
+    The actions of a game. 
+    The static methods can be used to analyse and iterate through actions.
+    """
     move_f = 0
     turn_l = 1
     turn_r = 2
@@ -55,6 +68,45 @@ class AllActions:
         jump: "jump 1",
         wait: "wait"
     }
+
+    def __init__(self, move=(1, -1), turn=(1, -1), strafe=(1, -1), jump=False, wait=False):
+        """
+        Creates an entity with a subset of the possible actions.
+        Can be used to allow agents to have different subsets of actions.
+        :param tuple move: Can agent move forward (has a 1) and backwards (has a -1)
+        :param tuple turn: Can agent turn right (has a 1) and left (has a -1)
+        :param tuple strafe: Can agent strafe right (has a 1) and left (has a -1) 
+        :param bool jump: Can agent jump.
+        :param bool wait: Can agent output a wait-flag which does not take up a turn, 
+            but refreshed information from server.
+        """
+        self._actions = []
+
+        # Move forth and back
+        if 1 in move:
+            self._actions.append(AllActions.move_f)
+        if -1 in move:
+            self._actions.append(AllActions.move_b)
+
+        # Turn
+        if 1 in turn:
+            self._actions.append(AllActions.turn_r)
+        if -1 in turn:
+            self._actions.append(AllActions.turn_l)
+
+        # Strafe
+        if 1 in strafe:
+            self._actions.append(AllActions.strafe_r)
+        if -1 in strafe:
+            self._actions.append(AllActions.strafe_l)
+
+        # Jump
+        if jump:
+            self._actions.append(AllActions.jump)
+
+        # Wait
+        if wait:
+            self._actions.append(AllActions.wait)
 
     @staticmethod
     def is_move(action):
@@ -90,35 +142,6 @@ class AllActions:
     def __iter__(self):
         for action in self._actions:
             yield action
-
-    def __init__(self, move=(1, -1), turn=(1, -1), strafe=(1, -1), jump=False, wait=False):
-        self._actions = []
-
-        # Move forth and back
-        if 1 in move:
-            self._actions.append(AllActions.move_f)
-        if -1 in move:
-            self._actions.append(AllActions.move_b)
-
-        # Turn
-        if 1 in turn:
-            self._actions.append(AllActions.turn_r)
-        if -1 in turn:
-            self._actions.append(AllActions.turn_l)
-
-        # Strafe
-        if 1 in strafe:
-            self._actions.append(AllActions.strafe_r)
-        if -1 in strafe:
-            self._actions.append(AllActions.strafe_l)
-
-        # Jump
-        if jump:
-            self._actions.append(AllActions.jump)
-
-        # Wait
-        if wait:
-            self._actions.append(AllActions.wait)
 
     def __len__(self):
         return len(self._actions)

@@ -19,7 +19,6 @@ import os
 import sys
 from time import sleep
 
-from common import parse_clients_args, ENV_AGENT_NAMES, visualize_training
 from agent import PigChaseChallengeAgent
 from common import ENV_AGENT_NAMES
 from danish_puppet import DanishPuppet

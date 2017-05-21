@@ -7,8 +7,8 @@ import time
 from pathlib2 import Path
 from queue import Queue
 
-from brain import Brain, Strategies
-from constants import AllActions, KeysMapping, CellGoalType
+from utility.brain import Brain, Strategies
+from utility.constants import AllActions, KeysMapping, CellGoalType
 from malmopy.agent import BaseAgent
 from utility.ai import GamePlanner
 from utility.helmet_detection import HelmetDetector, HELMET_NAMES
