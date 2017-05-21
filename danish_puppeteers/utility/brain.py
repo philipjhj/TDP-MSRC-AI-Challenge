@@ -6,6 +6,7 @@ import numpy as np
 from hmmlearn.hmm import MultinomialHMM
 
 from ai import Plan
+from constants import CellGoalType
 from ml import FeatureSequence
 
 
@@ -151,7 +152,7 @@ class Brain:
         :param list[Plan] own_plans: The possible plans for our agent to exercise.
         :return: int
         """
-        own_pig_plans = [plan for plan in own_plans if plan.target == Plan.PigCatch]
+        own_pig_plans = [plan for plan in own_plans if plan.target == CellGoalType.PigCatch]
 
         # Data on past
         compliances = np.array([feature.compliance for feature in game_features.features])
@@ -176,7 +177,7 @@ class Brain:
         :param bool verbose: Want prints?
         :return: int
         """
-        own_pig_plans = [plan for plan in own_plans if plan.target == Plan.PigCatch]
+        own_pig_plans = [plan for plan in own_plans if plan.target == CellGoalType.PigCatch]
 
         # Check if pig can be caught alone (override)
         if len(own_pig_plans) == 1:

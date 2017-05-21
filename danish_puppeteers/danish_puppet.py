@@ -8,7 +8,7 @@ from pathlib2 import Path
 from queue import Queue
 
 from brain import Brain, Strategies
-from constants import AllActions, KeysMapping
+from constants import AllActions, KeysMapping, CellGoalType
 from malmopy.agent import BaseAgent
 from utility.ai import Plan, GamePlanner
 from utility.helmet_detection import HelmetDetector, HELMET_NAMES
@@ -96,7 +96,7 @@ class DanishPuppet(BaseAgent):
 
         # Features and memory
         self.game_features_history = []
-        self.game_observer = GameObserver(helmets=helmets)
+        self.game_observer = GameObserver()
         self.game_features = FeatureSequence()
         self.game_summary_history = Queue(maxsize=SUMMARY_HISTORY_SIZE)
 
@@ -133,7 +133,7 @@ class DanishPuppet(BaseAgent):
         prize = int(max(reward_sequence))
         reward = int(sum(reward_sequence))
 
-        game_summary = GameSummary(feature_matrix=self.game_features,
+        game_summary = GameSummary(feature_sequence=self.game_features,
                                    reward=reward,
                                    prize=prize,
                                    final_state=state,
@@ -234,7 +234,7 @@ class DanishPuppet(BaseAgent):
                 print(item)
 
         if Print.steps_to_other:
-            print("Steps to challenger: {}".format(GameObserver.directional_steps_to_other(me, challenger)))
+            print("Steps to challenger: {}".format(GamePlanner.directional_steps_to_other(me, challenger)))
 
         if DEBUG_STORE_IMAGE:
             HelmetDetector.store_snapshot(me=me,
@@ -291,8 +291,8 @@ class DanishPuppet(BaseAgent):
                     print("      {}".format(plan.path_print()))
 
         # Pig plans for both agents
-        own_pig_plans = [plan for plan in own_plans if plan.target == Plan.PigCatch]
-        challenger_pig_plans = [plan for plan in challengers_plans if plan.target == Plan.PigCatch]
+        own_pig_plans = [plan for plan in own_plans if plan.target == CellGoalType.PigCatch]
+        challenger_pig_plans = [plan for plan in challengers_plans if plan.target == CellGoalType.PigCatch]
 
         ###############################################################################
         # If no time left - leave game
@@ -303,7 +303,7 @@ class DanishPuppet(BaseAgent):
 
             # Exit plans
             exit_plans = [plan for plan in own_plans
-                          if plan.target == Plan.Exit]
+                          if plan.target == CellGoalType.Exit]
 
             # Find nearest exit
             path = sorted(exit_plans, key=lambda x: -x.utility)[0]
@@ -411,7 +411,7 @@ class DanishPuppet(BaseAgent):
                 print("Challenger seems to be an idiot.")
 
             # Exit plan
-            plan = sorted([plan for plan in own_plans if plan.target == Plan.Exit],
+            plan = sorted([plan for plan in own_plans if plan.target == CellGoalType.Exit],
                           key=lambda x: -x.utility)[0]
 
             # Return next action (0th element is current position)
@@ -448,7 +448,7 @@ class DanishPuppet(BaseAgent):
             if len(own_pig_plan) < 2:
                 if Print.waiting_info:
                     print("\nWaiting for challenger to help with pig ...")
-                return GameObserver.directional_wait_action(entity=me,
+                return GamePlanner.directional_wait_action(entity=me,
                                                             other_position=challenger)
 
             # Return next action (0th element is current position)

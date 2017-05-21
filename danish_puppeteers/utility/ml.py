@@ -1,6 +1,7 @@
 import numpy as np
 
 from ai import Plan
+from constants import CellGoalType
 
 
 class Features:
@@ -80,15 +81,15 @@ class FeatureSequence:
     def _compute_distances(self, own_plans, challengers_plans):
         # Pig distances
         dist_me_pig = min([plan.plan_length() for plan in own_plans
-                           if plan.target == Plan.PigCatch])
+                           if plan.target == CellGoalType.PigCatch])
         dist_challenger_pig = min([plan.plan_length() for plan in challengers_plans
-                                   if plan.target == Plan.PigCatch])
+                                   if plan.target == CellGoalType.PigCatch])
 
         # Exit distances
         dist_me_exit = min([plan.plan_length() for plan in own_plans
-                            if plan.target == Plan.Exit])
+                            if plan.target == CellGoalType.Exit])
         dist_challenger_exit = min([plan.plan_length() for plan in challengers_plans
-                                    if plan.target == Plan.Exit])
+                                    if plan.target == CellGoalType.Exit])
 
         return dist_me_pig, dist_challenger_pig, dist_me_exit, dist_challenger_exit
 

@@ -1,7 +1,7 @@
 from collections import deque
 from heapq import heapify, heappush, heappop
 
-from constants import DIRECTION_NAMES, PIG_CATCH_PRIZE, EXIT_PRICE, AllActions
+from constants import PIG_CATCH_PRIZE, EXIT_PRICE, AllActions, CellGoalType, Direction
 
 
 class Location:
@@ -89,16 +89,13 @@ class EntityPosition(Location):
         return "{: >16s}(x={:d}, z={:d}, direction={})".format(self.name + "_Position",
                                                                self.x,
                                                                self.z,
-                                                               DIRECTION_NAMES[self.direction])
+                                                               Direction[self.direction])
 
     def __repr__(self):
         return str(self)
 
 
 class Plan:
-    Exit = "Exit"
-    PigCatch = "PigCatch"
-    NoGoal = "None"
 
     def __init__(self, target, x, z, prize, path):
         self.target = target
@@ -138,40 +135,114 @@ class Plan:
 
 
 class GamePlanner:
-    north, east, south, west = range(4)
-
     def __init__(self):
         pass
 
     @staticmethod
+    def directional_steps_to_other(agent, other):
+        """
+        Determines the moves needed to reach an agent, returned as:
+            (steps forward, steps to the side)
+        :param EntityPosition agent: 
+        :param EntityPosition other: 
+        :return: (int, int)
+        """
+        x_diff = other.x - agent.x
+        z_diff = other.z - agent.z
+
+        if agent.direction == 0:
+            forward = -z_diff
+            side = x_diff
+        elif agent.direction == 1:
+            forward = x_diff
+            side = z_diff
+        elif agent.direction == 2:
+            forward = z_diff
+            side = -x_diff
+        elif agent.direction == 3:
+            forward = -x_diff
+            side = -z_diff
+        else:
+            forward = side = None
+
+        return forward, side
+
+    @staticmethod
+    def direction_towards_position(own_position, other_position):
+        """
+        Computes the grid-direction most headed towards another position.
+        :param Location own_position: 
+        :param Location other_position: 
+        :return: int
+        """
+        x_diff = other_position.x - own_position.x
+        z_diff = other_position.z - own_position.z
+
+        if abs(x_diff) > abs(z_diff):
+            if x_diff < 0:
+                return 4
+            else:
+                return 1
+        else:
+            if z_diff < 0:
+                return 0
+            else:
+                return 3
+
+    @staticmethod
+    def directional_wait_action(entity, other_position):
+        """
+        Used for waiting on another agent.
+        Turns towards the agent while waiting (for seeing him) and then jumps happily while waiting.
+        :param EntityPosition entity: 
+        :param EntityPosition other_position: 
+        :return: int
+        """
+        # Determine direction
+        direction = GamePlanner.direction_towards_position(entity, other_position)
+
+        # Determine action
+        direction_diff = direction - entity.direction
+        while direction_diff < -2:
+            direction_diff += 4
+        while direction_diff > 2:
+            direction_diff -= 4
+        if direction_diff < 0:
+            return AllActions.turn_l
+        elif direction_diff > 0:
+            return AllActions.turn_r
+        else:
+            return AllActions.jump
+
+    @staticmethod
     def move_inc_x(x, direction, delta):
-        if direction == GamePlanner.east:
+        if direction == Direction.east:
             return x + delta
-        if direction == GamePlanner.west:
+        if direction == Direction.west:
             return x - delta
         return x
 
     @staticmethod
     def move_inc_z(z, direction, delta):
-        if direction == GamePlanner.south:
+        if direction == Direction.south:
             return z + delta
-        if direction == GamePlanner.north:
+        if direction == Direction.north:
             return z - delta
         return z
 
     @staticmethod
     def strafe_inc_x(x, direction, delta):
-        if direction == GamePlanner.north:
+        if direction == Direction.north:
             return x + delta
-        if direction == GamePlanner.south:
+        if direction == Direction.south:
             return x - delta
         return x
 
     @staticmethod
     def strafe_inc_z(z, direction, delta):
-        if direction == GamePlanner.east:
+        if direction == Direction.east:
             return z + delta
-        if direction == GamePlanner.west:
+        if direction == Direction.west:
             return z - delta
         return z
 
@@ -181,7 +252,7 @@ class GamePlanner:
         for path in paths:
             if any([GamePlanner.matches(target, path[-1]) for target in exits]):
                 final_position = path[-1]
-                plan = Plan(target=Plan.Exit,
+                plan = Plan(target=CellGoalType.Exit,
                             x=final_position.x,
                             z=final_position.z,
                             prize=EXIT_PRICE - moves,
@@ -189,7 +260,7 @@ class GamePlanner:
                 plans.append(plan)
             elif any([GamePlanner.matches(target, path[-1]) for target in pig_neighbours]):
                 final_position = path[-1]
-                plan = Plan(target=Plan.PigCatch,
+                plan = Plan(target=CellGoalType.PigCatch,
                             x=final_position.x,
                             z=final_position.z,
                             prize=PIG_CATCH_PRIZE - moves,
@@ -197,7 +268,7 @@ class GamePlanner:
                 plans.append(plan)
             else:
                 final_position = path[-1]
-                plan = Plan(target=Plan.NoGoal,
+                plan = Plan(target=CellGoalType.NoGoal,
                             x=final_position.x,
                             z=final_position.z,
                             prize=0 - moves,

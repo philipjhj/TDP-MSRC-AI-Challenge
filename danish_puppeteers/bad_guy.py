@@ -4,10 +4,10 @@ from collections import namedtuple, OrderedDict
 
 import numpy as np
 
+from constants import AllActions, EntityNames
 from malmopy.agent import BaseAgent
 from utility.ai import EntityPosition, Neighbour, GamePlanner
 from utility.minecraft import GameObserver
-from constants import ENTITY_NAMES, AllActions
 
 
 class BadGuy(BaseAgent):
@@ -34,7 +34,7 @@ class BadGuy(BaseAgent):
 
         # Initialize entities information
         if self._entities is None:
-            self._entities = OrderedDict((name, None) for name in ENTITY_NAMES)
+            self._entities = OrderedDict((name, None) for name in EntityNames)
             for item in entities:
                 self._entities[item['name']] = EntityPosition(name=item['name'], yaw=item['yaw'],
                                                               x=item['x'], z=item['z'])

@@ -122,7 +122,7 @@ class HelmetDetector:
             next_file_number = 0
 
         # Data to be stored
-        data_file = ((me, challenger, pig), GameObserver.directional_steps_to_other(me, challenger), state, frame)
+        data_file = ((me, challenger, pig), GamePlanner.directional_steps_to_other(me, challenger), state, frame)
 
         # Make data-dump
         pickle.dump(data_file, Path(storage_path, "file_{}.p".format(next_file_number)).open("wb"))

@@ -1,12 +1,38 @@
-DIRECTION_NAMES = [
-    "north",
-    "east",
-    "south",
-    "west"
-]
-ENTITY_NAMES = ["Agent_1", "Agent_2", "Pig"]
+
 PIG_CATCH_PRIZE = 25
 EXIT_PRICE = 5
+
+
+class EntityNames:
+    challenger = "Agent_1"
+    me = "Agent_2"
+    pig = "Pig"
+
+    @staticmethod
+    def to_list():
+        return [EntityNames.challenger, EntityNames.me, EntityNames.pig]
+
+    class __metaclass__(type):
+        def __getitem__(self, item):
+            return [EntityNames.challenger, EntityNames.me, EntityNames.pig][item]
+
+        def __iter__(self):
+            for name in EntityNames.to_list():
+                yield name
+
+
+class Direction:
+    north, east, south, west = range(4)
+
+    class __metaclass__(type):
+        def __getitem__(self, item):
+            return ["north", "east", "south", "west"][item]
+
+
+class CellGoalType:
+    Exit = "Exit"
+    PigCatch = "PigCatch"
+    NoGoal = "None"
 
 
 class AllActions:
