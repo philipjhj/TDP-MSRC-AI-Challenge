@@ -9,7 +9,7 @@ from pathlib2 import Path
 from sklearn import svm
 
 
-from ai import GamePlanner
+from ai import GamePlanner, EntityPosition
 
 HELMET_NAMES = [
     "iron_helmet",
@@ -41,9 +41,16 @@ class HelmetDetector:
             self.train_from_path()
 
     def reset(self):
+        """
+        Resets helmet probabilities. 
+        """
         self.helmet_probabilities = np.ones(4)
 
     def train_from_path(self, data_path=None):
+        """
+        Trains helmet-detector from data-files in the path.
+        :param Path data_path: 
+        """
         if data_path is None:
             data_path = Path("..", "data")
 
@@ -83,16 +90,29 @@ class HelmetDetector:
         self.classifier.fit(hat_vectors, hat_class)
 
     def store_classifier(self, path=None):
+        """
+        Stores currently trained classifier.
+        :param Path path: 
+        """
         if path is None:
             path = Path("..", "danish_puppeteers", "storage", "helmet_classifier.p")
         pickle.dump(self.classifier, path.open("wb"))
 
     def load_classifier(self, path=None):
+        """
+        Loads classifier from file.
+        :param Path path: 
+        """
         if path is None:
             path = Path("..", "danish_puppeteers", "storage", "helmet_classifier.p")
         self.classifier = pickle.load(path.open("rb"))
 
     def _helmet_probabilities(self, frame):
+        """
+        Computes the probabilities as given by the used classifier, for the various helmets. 
+        :param np.array frame: 
+        :return: int, np.array
+        """
         # Get features
         current_features = self.get_helmet_features(frame, self.base_sky)
 
@@ -114,6 +134,15 @@ class HelmetDetector:
     @staticmethod
     def store_snapshot(me, challenger, pig, state, frame,
                        storage_path="../data_dumps"):
+        """
+        Stores a snapshot of the current situation (used for creating data for training model).
+        :param EntityPosition me: 
+        :param EntityPosition challenger: 
+        :param EntityPosition pig: 
+        :param np.array state: 
+        :param np.array frame: 
+        :param Path storage_path: 
+        """
         storage_path = Path(storage_path)
 
         # Find next file-id
@@ -132,12 +161,22 @@ class HelmetDetector:
 
     @staticmethod
     def to_matrix(a_frame):
+        """
+        Converts PIL-object to numpy array.
+        :param a_frame: 
+        :return: np.array
+        """
         if not isinstance(a_frame, np.ndarray):
             return np.asarray(a_frame.convert(matrix='RBG'))
         return a_frame
 
     @staticmethod
     def get_sky(a_frame):
+        """
+        
+        :param a_frame: 
+        :return: 
+        """
         matrix = HelmetDetector.to_matrix(a_frame=a_frame)
         return matrix[:50, :, :]
 

@@ -7,3 +7,4 @@ data/**
 danish_puppeteers/*.pyc
 danish_puppeteers/*/*.pyc
 danish_puppeteers/*.pyc
+evaluations/*

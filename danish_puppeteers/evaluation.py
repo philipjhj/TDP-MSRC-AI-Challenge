@@ -28,6 +28,7 @@ from environment import PigChaseEnvironment, PigChaseSymbolicStateBuilder
 sys.path.insert(0, os.getcwd())
 sys.path.insert(1, os.path.join(os.path.pardir, os.getcwd()))
 
+EVAL_EPISODES = 100
 
 class PigChaseEvaluator(object):
     def __init__(self, clients, agent_100k, agent_500k, state_builder):
@@ -48,7 +49,7 @@ class PigChaseEvaluator(object):
         uploaded a file with the same experiment name.
         
         :param experiment_name: An identifier for the experiment
-        :param filepath: Path where to store the results file
+        :param Path filepath: Path where to store the results file
         :return: 
         """
 
@@ -68,12 +69,8 @@ class PigChaseEvaluator(object):
         metrics['experimentname'] = experiment_name
 
         try:
-            filepath = abspath(filepath)
-            parent = join(pardir, filepath)
-            if not exists(parent):
-                makedirs(parent)
 
-            with open(filepath, 'w') as f_out:
+            with filepath.open("wb") as f_out:
                 dump(metrics, f_out)
 
             print('==================================')
@@ -122,7 +119,6 @@ def agent_loop(agent, env, metrics_acc):
     :param env: 
     :param metrics_acc: 
     """
-    EVAL_EPISODES = 100
     agent_done = False
     reward = 0
     episode = 0
@@ -176,7 +172,6 @@ def agent_loop(agent, env, metrics_acc):
 
 
 def challenger_agent_loop(agent, env, metrics_acc):
-    EVAL_EPISODES = 100
     agent_done = False
     reward = 0
     episode = 0
@@ -185,7 +180,6 @@ def challenger_agent_loop(agent, env, metrics_acc):
     while episode < EVAL_EPISODES:
         # check if env needs reset
         if env.done:
-            print('Episode %d (%.2f)%%' % (episode, (episode / EVAL_EPISODES) * 100.))
 
             state = env.reset()
             while state is None:

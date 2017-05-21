@@ -14,11 +14,13 @@
 #  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 # ===================================================================================================================
+from pathlib2 import Path
 
 from common import ENV_AGENT_NAMES
 from danish_puppet import DanishPuppet
 from environment import PigChaseSymbolicStateBuilder
 from evaluation import PigChaseEvaluator
+from utility.util import ensure_folder
 
 if __name__ == '__main__':
     # Warn for Agent name !!!
@@ -29,4 +31,6 @@ if __name__ == '__main__':
     eval = PigChaseEvaluator(clients, agent, agent, PigChaseSymbolicStateBuilder())
     eval.run()
 
-    eval.save('My Exp 1', 'pig_chase_results.json')
+    folder_path = Path("..", "evaluations")
+    ensure_folder(folder_path)
+    eval.save('My Exp 1', Path(folder_path, "pig_chase_results.json"))
