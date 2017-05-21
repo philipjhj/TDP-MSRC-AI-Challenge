@@ -6,7 +6,7 @@ import numpy as np
 
 from constants import AllActions, EntityNames
 from malmopy.agent import BaseAgent
-from utility.ai import EntityPosition, Neighbour, GamePlanner
+from utility.ai import EntityPosition, SearchNode, GamePlanner
 from utility.minecraft import GameObserver
 
 
@@ -51,7 +51,7 @@ class BadGuy(BaseAgent):
         # Determine possible targets
 
         # Target positions
-        targets = [Neighbour(x=1, z=4, direction=0, action=""), Neighbour(x=7, z=4, direction=0, action="")]
+        targets = [SearchNode(x=1, z=4, direction=0, action=""), SearchNode(x=7, z=4, direction=0, action="")]
 
         ###############################################################################
         # Compute possible plans for each player plans

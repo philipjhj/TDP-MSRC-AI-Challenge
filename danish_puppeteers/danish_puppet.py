@@ -10,7 +10,7 @@ from queue import Queue
 from brain import Brain, Strategies
 from constants import AllActions, KeysMapping, CellGoalType
 from malmopy.agent import BaseAgent
-from utility.ai import Plan, GamePlanner
+from utility.ai import GamePlanner
 from utility.helmet_detection import HelmetDetector, HELMET_NAMES
 from utility.minecraft import map_view, GameSummary, GameObserver, GameTimer
 from utility.ml import FeatureSequence
@@ -25,7 +25,7 @@ SUMMARY_HISTORY_SIZE = 10
 
 SAMPLES_IN_MEMORY = 100
 DEBUG_STORE_IMAGE = False
-SECONDS_WAIT_BEFORE_IMAGE = 1
+SECONDS_WAIT_BEFORE_IMAGE = 0.1
 
 
 def print_if(condition, string):
@@ -215,6 +215,9 @@ class DanishPuppet(BaseAgent):
         # Get information from environment
         print_if(Print.code_line_print, "CODE: Information parsing")
 
+        if state is None:
+            return AllActions.jump
+
         entities = state[1]
         state = state[0]
         self.n_moves += 1
@@ -281,14 +284,14 @@ class DanishPuppet(BaseAgent):
             for plan in own_plans:
                 print("   {}".format(plan))
                 if Print.detailed_plans:
-                    print("      {}".format(plan.path_print()))
+                    print("      {}".format(plan.path_str()))
 
         if Print.challenger_plans:
             print("\nChallenger {} plans:".format(len(challengers_plans)))
             for plan in challengers_plans:
                 print("   {}".format(plan))
                 if Print.detailed_plans:
-                    print("      {}".format(plan.path_print()))
+                    print("      {}".format(plan.path_str()))
 
         # Pig plans for both agents
         own_pig_plans = [plan for plan in own_plans if plan.target == CellGoalType.PigCatch]

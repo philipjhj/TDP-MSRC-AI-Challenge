@@ -8,8 +8,11 @@ class Location:
     """
     Holds a location in the game. Basically works as a named tuple of x- and z-coordinates. 
     """
-
     def __init__(self, x, z):
+        """
+        :param int x: x-coordinate. 
+        :param int z: z-coordinate.
+        """
         self.x = x
         self.z = z
 
@@ -27,11 +30,17 @@ class Location:
         return "({}, {})".format(self.x, self.z)
 
 
-class Neighbour(Location):
+class SearchNode(Location):
+    """
+    Expansion of Location to also hold direction and an action.
+    Used for searching graphs. 
+    """
     def __init__(self, x, z, direction, action):
         """
-        Expansion of Location to also hold direction and an action.
-        Used for searching graphs. 
+        :param int x: x-coordinate. 
+        :param int z: z-coordinate.
+        :param int direction:  
+        :param int | str action: Action of this graph-node. 
         """
         Location.__init__(self, x, z)
         self.direction = direction
@@ -60,8 +69,13 @@ class EntityPosition(Location):
     """
     Expansion of Location to also hold direction and name of an entity. 
     """
-
     def __init__(self, name, yaw, x, z):
+        """
+        :param str name: 
+        :param int | float yaw: 
+        :param int x: 
+        :param int z: 
+        """
         Location.__init__(self, x, z)
         self.name = name
         self.direction = self.find_direction(yaw)
@@ -83,7 +97,7 @@ class EntityPosition(Location):
         self.direction = self.find_direction(yaw)
 
     def to_neighbour(self):
-        return Neighbour(x=self.x, z=self.z, direction=self.direction, action="")
+        return SearchNode(x=self.x, z=self.z, direction=self.direction, action="")
 
     def __str__(self):
         return "{: >16s}(x={:d}, z={:d}, direction={})".format(self.name + "_Position",
@@ -96,11 +110,20 @@ class EntityPosition(Location):
 
 
 class Plan:
-
-    def __init__(self, target, x, z, prize, path):
+    """
+    Container for holding a path with actions to some node.
+    Also holds information like the prize and position of the final cell. 
+    """
+    def __init__(self, target, prize, path):
+        """
+        :param Location target: 
+        :param int prize: 
+        :param list[SearchNode] path: 
+        """
+        final_position = path[-1]
         self.target = target
-        self.x = x
-        self.z = z
+        self.x = final_position.x
+        self.z = final_position.z
         self.path = path
 
         self.utility = prize - self.plan_length()
@@ -117,7 +140,7 @@ class Plan:
         else:
             return len(self) - 1
 
-    def path_print(self):
+    def path_str(self):
         if len(self) == 1:
             return "[]"
         else:
@@ -135,6 +158,10 @@ class Plan:
 
 
 class GamePlanner:
+    """
+    Used for planning actions in a game.
+    Can search with A-star and other action-related tasks.
+    """
     def __init__(self):
         pass
 
@@ -215,7 +242,7 @@ class GamePlanner:
             return AllActions.jump
 
     @staticmethod
-    def move_inc_x(x, direction, delta):
+    def _move_inc_x(x, direction, delta):
         if direction == Direction.east:
             return x + delta
         if direction == Direction.west:
@@ -223,7 +250,7 @@ class GamePlanner:
         return x
 
     @staticmethod
-    def move_inc_z(z, direction, delta):
+    def _move_inc_z(z, direction, delta):
         if direction == Direction.south:
             return z + delta
         if direction == Direction.north:
@@ -231,7 +258,7 @@ class GamePlanner:
         return z
 
     @staticmethod
-    def strafe_inc_x(x, direction, delta):
+    def _strafe_inc_x(x, direction, delta):
         if direction == Direction.north:
             return x + delta
         if direction == Direction.south:
@@ -239,7 +266,7 @@ class GamePlanner:
         return x
 
     @staticmethod
-    def strafe_inc_z(z, direction, delta):
+    def _strafe_inc_z(z, direction, delta):
         if direction == Direction.east:
             return z + delta
         if direction == Direction.west:
@@ -248,29 +275,28 @@ class GamePlanner:
 
     @staticmethod
     def paths_to_plans(paths, exits, pig_neighbours, moves):
+        """
+        Converts paths into Plan-objects.
+        :param list paths: 
+        :param list exits: 
+        :param list pig_neighbours: 
+        :param int moves: 
+        :return: list
+        """
         plans = []
         for path in paths:
             if any([GamePlanner.matches(target, path[-1]) for target in exits]):
-                final_position = path[-1]
                 plan = Plan(target=CellGoalType.Exit,
-                            x=final_position.x,
-                            z=final_position.z,
                             prize=EXIT_PRICE - moves,
                             path=path)
                 plans.append(plan)
             elif any([GamePlanner.matches(target, path[-1]) for target in pig_neighbours]):
-                final_position = path[-1]
                 plan = Plan(target=CellGoalType.PigCatch,
-                            x=final_position.x,
-                            z=final_position.z,
                             prize=PIG_CATCH_PRIZE - moves,
                             path=path)
                 plans.append(plan)
             else:
-                final_position = path[-1]
                 plan = Plan(target=CellGoalType.NoGoal,
-                            x=final_position.x,
-                            z=final_position.z,
                             prize=0 - moves,
                             path=path)
                 plans.append(plan)
@@ -278,7 +304,14 @@ class GamePlanner:
         return plans
 
     @staticmethod
-    def neighbors(pos, actions, state=None):
+    def _neighbors(pos, actions, state):
+        """
+        Determines neighbours of a state, given a list of possible actions.
+        :param Location | EntityPosition | SearchNode pos: 
+        :param list actions: 
+        :param np.array state: 
+        :return: list[SearchNode]
+        """
         # State information
         state_width = state.shape[1]
         state_height = state.shape[0]
@@ -293,27 +326,27 @@ class GamePlanner:
             # Turning actions
             if AllActions.is_turn(action):
                 new_direction = (pos.direction + sign) % 4
-                new_state = Neighbour(x=pos.x,
-                                      z=pos.z,
-                                      direction=new_direction,
-                                      action=action)
+                new_state = SearchNode(x=pos.x,
+                                       z=pos.z,
+                                       direction=new_direction,
+                                       action=action)
                 neighbors.append(new_state)
 
             # Strafing actions
             if AllActions.is_strafe(action):
                 neighbors.append(
-                    Neighbour(x=GamePlanner.strafe_inc_x(pos.x, pos.direction, sign),
-                              z=GamePlanner.strafe_inc_z(pos.z, pos.direction, sign),
-                              direction=pos.direction,
-                              action=action))
+                    SearchNode(x=GamePlanner._strafe_inc_x(pos.x, pos.direction, sign),
+                               z=GamePlanner._strafe_inc_z(pos.z, pos.direction, sign),
+                               direction=pos.direction,
+                               action=action))
 
             # Moving actions
             if AllActions.is_move(action):
                 neighbors.append(
-                    Neighbour(x=GamePlanner.move_inc_x(pos.x, pos.direction, sign),
-                              z=GamePlanner.move_inc_z(pos.z, pos.direction, sign),
-                              direction=pos.direction,
-                              action=action))
+                    SearchNode(x=GamePlanner._move_inc_x(pos.x, pos.direction, sign),
+                               z=GamePlanner._move_inc_z(pos.z, pos.direction, sign),
+                               direction=pos.direction,
+                               action=action))
 
         # now prune:
         valid_neighbours = [n for n in neighbors if
@@ -323,20 +356,32 @@ class GamePlanner:
 
     @staticmethod
     def heuristic(a, b):
+        """
+        Manhattan distance heuristic.
+        :param Location | EntityPosition | SearchNode a: 
+        :param Location | EntityPosition | SearchNode b: 
+        :return: int
+        """
         (x1, y1) = (a.x, a.z)
         (x2, y2) = (b.x, b.z)
         return abs(x1 - x2) + abs(y1 - y2)
 
     @staticmethod
     def matches(a, b):
+        """
+        Checks if two locations are the same.
+        :param Location | EntityPosition | SearchNode a: 
+        :param Location | EntityPosition | SearchNode b: 
+        :return: bool
+        """
         return a.x == b.x and a.z == b.z  # don't worry about dir and action
 
     @staticmethod
     def astar_multi_search(start, goals, state, actions):
         """
         Searches the entire graph for the shortest path from one location to any of a list of goals. 
-        :param Location |Position | Neighbour start: 
-        :param list goals:  
+        :param Location | EntityPosition | SearchNode start: 
+        :param list goals: 
         :return: 
         """
         # Ensure uniqueness of goal-positions
@@ -369,7 +414,7 @@ class GamePlanner:
                 break
 
             # Go through neighbours
-            for nb in GamePlanner.neighbors(current, actions=actions, state=state):
+            for nb in GamePlanner._neighbors(current, actions=actions, state=state):
                 # Compute new cost
                 cost = nb.cost if hasattr(nb, "cost") else 1
                 new_cost = cost_so_far[current] + cost

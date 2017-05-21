@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from ai import EntityPosition, Neighbour, Location, GamePlanner
+from ai import EntityPosition, SearchNode, Location, GamePlanner
 from constants import EntityNames
 from ml import FeatureSequence
 
@@ -188,8 +188,8 @@ class GameObserver:
         :return: (list[Location], list[Location])
         """
         # Exist positions
-        exits = [Neighbour(x=1, z=4, direction=0, action=""),
-                 Neighbour(x=7, z=4, direction=0, action="")]
+        exits = [SearchNode(x=1, z=4, direction=0, action=""),
+                 SearchNode(x=7, z=4, direction=0, action="")]
 
         # Get pig position
         pig_node = Location(pig.x, pig.z)
