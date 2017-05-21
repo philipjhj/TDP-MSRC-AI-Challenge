@@ -148,13 +148,13 @@ class DanishPuppet(BaseAgent):
             print("   From reward-sequence: {}".format(reward_sequence))
 
         self.game_features_history.append(self.game_features)
-        if len(self.game_features_history) > SAMPLES_IN_MEMORY:
-            print("Storing data-history.")
-            folder_path = Path("..", "data_dumps")
-            ensure_folder(folder_path)
-            pickle.dump(self.game_features_history, Path(folder_path, "game_features_history.p").open("wb"))
-            self.game_features_history = random.sample(self.game_features_history,
-                                                       int(SAMPLES_IN_MEMORY * 0.95))
+        # if len(self.game_features_history) > SAMPLES_IN_MEMORY:
+        #     print("Storing data-history.")
+        #     folder_path = Path("..", "data_dumps")
+        #     ensure_folder(folder_path)
+        #     pickle.dump(self.game_features_history, Path(folder_path, "game_features_history.p").open("wb"))
+        #     self.game_features_history = random.sample(self.game_features_history,
+        #                                                int(SAMPLES_IN_MEMORY * 0.95))
 
     def act(self, state, reward, done, total_time=None, is_training=False, frame=None):
 

@@ -162,7 +162,7 @@ class Brain:
             challenger_strategy = Strategies.irrelevant
 
         # Base predicted strategy on compliance of challenger
-        elif compliances.mean() < 0.5:
+        elif compliances.mean() < 0.4:
             challenger_strategy = Strategies.random_walker
         else:
             challenger_strategy = Strategies.naive_cooperative
