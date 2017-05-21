@@ -28,6 +28,7 @@ from challenger_factory import ChallengerFactory
 from danish_puppet import DanishPuppet
 from malmopy.agent import RandomAgent
 from standstill_agent import StandstillAgent
+import numpy as np
 
 try:
     from malmopy.visualization.tensorboard import TensorboardVisualizer
@@ -47,22 +48,17 @@ BASELINES_FOLDER = 'results/baselines/pig_chase/%s/%s'
 EPOCH_SIZE = 100
 
 USE_MARKOV = True
-MANUAL = True
-HUMAN_SPEED = True
-WAIT_FOR_PIG = False
+MANUAL = False
+HUMAN_SPEED = False
+WAIT_FOR_PIG = True
 
 PASS_FRAME = True
 
-AGENT_TYPE = {
-    RandomAgent: PigChaseEnvironment.AGENT_TYPE_0,
-    StandstillAgent: PigChaseEnvironment.AGENT_TYPE_1,
-    BadGuy: PigChaseEnvironment.AGENT_TYPE_2,
-    FocusedAgent: PigChaseEnvironment.AGENT_TYPE_3
-}
+
 
 
 def get_agent_type(c_agent):
-    return AGENT_TYPE.get(type(c_agent),
+    return ChallengerFactory.AGENT_TYPE.get(type(c_agent),
                           PigChaseEnvironment.AGENT_TYPE_3)
 
 
@@ -78,12 +74,15 @@ def agent_factory(name, role, clients, max_epochs,
                               human_speed=HUMAN_SPEED,
                               randomize_positions=True)
 
+    # Default agent (challenger)
+    c_agent = ChallengerFactory(name, focused=True, random=True, bad_guy=False, standstill=False)
+
     # Challenger  (Agent_1)
     if role == 0:
-        c_agent = ChallengerFactory(name, focused=True, random=True, bad_guy=True, standstill=True)
 
         agent_type = get_agent_type(c_agent.current_agent)
         state = env.reset(agent_type)
+        print("Agent Factory: Assigning {}.".format(type(c_agent.current_agent).__name__))
 
         reward = 0
         agent_done = False
@@ -97,6 +96,7 @@ def agent_factory(name, role, clients, max_epochs,
             if env.done:
                 agent_type = get_agent_type(c_agent.current_agent)
                 _ = env.reset(agent_type)
+                print("Agent Factory: Assigning {}.".format(type(c_agent.current_agent).__name__))
 
             # take a step
             state, reward, agent_done = env.do(action)
@@ -104,6 +104,7 @@ def agent_factory(name, role, clients, max_epochs,
     # Our Agent (Agent_2)
     else:
         c_agent = DanishPuppet(name=name,
+                               helmets=c_agent.get_helmets(),
                                wait_for_pig=WAIT_FOR_PIG,
                                use_markov=USE_MARKOV)
 
@@ -120,6 +121,7 @@ def agent_factory(name, role, clients, max_epochs,
         for step in range(1, max_training_steps + 1):
 
             # check if env needs reset
+
             if env.done:
                 c_agent.note_game_end(reward_sequence=viz_rewards,
                                       state=state[0])
@@ -135,7 +137,13 @@ def agent_factory(name, role, clients, max_epochs,
                 # for key, item in env.world_observations.items():
                 #     print(key, ":", item)
 
-                action = c_agent.act(state, reward, agent_done,
+                total_time = None
+                if env is not None and env.world_observations is not None:
+                    total_time = env.world_observations["TotalTime"]
+
+                action = c_agent.act(state, reward,
+                                     done=agent_done,
+                                     total_time=total_time,
                                      is_training=True,
                                      frame=frame)
 

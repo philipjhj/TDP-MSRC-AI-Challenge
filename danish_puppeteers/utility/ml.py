@@ -106,7 +106,7 @@ class FeatureSequence:
                                   dist_me_exit=dist_me_exit,
                                   delta_dist_challenger_pig=0,
                                   delta_dist_challenger_exit=0,
-                                  helmet=current_challenger + 1,
+                                  helmet=current_challenger,
                                   compliance=1)
             self.features.append(c_features)
 
@@ -126,7 +126,7 @@ class FeatureSequence:
                                   dist_me_exit=dist_me_exit,
                                   delta_dist_challenger_pig=delta_challenger_pig_distance,
                                   delta_dist_challenger_exit=delta_challenger_exit_distance,
-                                  helmet=current_challenger + 1,
+                                  helmet=current_challenger,
                                   compliance=compliance)
 
             # Add features

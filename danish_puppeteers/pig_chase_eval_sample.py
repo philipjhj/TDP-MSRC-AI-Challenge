@@ -17,16 +17,14 @@
 
 from common import ENV_AGENT_NAMES
 from danish_puppet import DanishPuppet
+from environment import PigChaseSymbolicStateBuilder
 from evaluation import PigChaseEvaluator
-from environment import PigChaseTopDownStateBuilder, PigChaseSymbolicStateBuilder
-from malmopy.agent import RandomAgent
-
 
 if __name__ == '__main__':
     # Warn for Agent name !!!
 
     clients = [('127.0.0.1', 10000), ('127.0.0.1', 10001)]
-    agent = DanishPuppet(ENV_AGENT_NAMES[1], use_markov=False)
+    agent = DanishPuppet(ENV_AGENT_NAMES[1], helmets=[1, 2], use_markov=False)
 
     eval = PigChaseEvaluator(clients, agent, agent, PigChaseSymbolicStateBuilder())
     eval.run()

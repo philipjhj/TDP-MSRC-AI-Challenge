@@ -3,70 +3,29 @@ from __future__ import division
 import pickle
 import random
 import time
-import warnings
-from itertools import product
 
-import numpy as np
-from hmmlearn.hmm import MultinomialHMM
 from pathlib2 import Path
 from queue import Queue
 
+from brain import Brain, Strategies
 from constants import AllActions, KeysMapping
 from malmopy.agent import BaseAgent
-from utility.ai import Plan, Neighbour, Location, GamePlanner
+from utility.ai import Plan, GamePlanner
 from utility.helmet_detection import HelmetDetector, HELMET_NAMES
-from utility.minecraft import map_view, GameSummary, GameObserver
-from utility.ml import Features, FeatureSequence
+from utility.minecraft import map_view, GameSummary, GameObserver, GameTimer
+from utility.ml import FeatureSequence
 
-P_FOCUSED = .75
-CELL_WIDTH = 33
+# TODO: I think you can still get stuck!
+#   TODO: Print times when waiting for the pig - do they not increment?
+#   TODO: Possibly ask agent to do something irrelevant (fx. jump) if waining too may iterations for the pig.
+#   TODO: It will cost an action, but may avoid the server crashing.
 
-MEMORY_SIZE = 10
+# TODO: Make the following input to the agent's constructor
+SUMMARY_HISTORY_SIZE = 10
 
-N_HELMETS = 4
-N_MARKOV_STATES = 4
-
+SAMPLES_IN_MEMORY = 100
 DEBUG_STORE_IMAGE = False
 SECONDS_WAIT_BEFORE_IMAGE = 1
-
-# Data
-HELMETS = list(range(N_HELMETS + 1))
-_towards_pig = [-1, 0, 1]
-_towards_exit = [-1, 0, 1]
-
-# Possible seen emissions from model
-# TODO: Move to GameObserver
-SAMPLES_IN_MEMORY = 10000
-POSSIBLE_EMISSIONS = []
-DECODE_EMISSION = {}
-BAD_DEFAULTS = []
-GOOD_DEFAULTS = []
-for idx, (h, p, e) in enumerate(product(HELMETS, _towards_pig, _towards_exit)):
-    POSSIBLE_EMISSIONS.append(idx)
-    feature = (h, p, e)
-    DECODE_EMISSION[idx] = feature
-
-    if h == 0 and p == 1:
-        if e < 1:
-            GOOD_DEFAULTS.extend([idx] * 2)
-        else:
-            GOOD_DEFAULTS.extend([idx])
-    if h == 0 and e == 1:
-        if p < 1:
-            BAD_DEFAULTS.extend([idx] * 2)
-        else:
-            BAD_DEFAULTS.extend([idx])
-ENCODE_EMISSION = {code: idx for idx, code in DECODE_EMISSION.items()}
-
-# Default dataset
-DEFAULT_SEQUENCES = [
-    random.sample(POSSIBLE_EMISSIONS, len(POSSIBLE_EMISSIONS)),
-    GOOD_DEFAULTS * 2,
-    BAD_DEFAULTS * 2
-]
-
-# Number of states and emissions
-N_EMISSIONS = len(POSSIBLE_EMISSIONS)
 
 
 def print_if(condition, string):
@@ -88,19 +47,30 @@ class Print:
     act_reached = False
     code_line_print = False
 
-    # In iterations
-    helmet_detection = True
-    timing = False
+    # Niceness
     iteration_line = False
+
+    # Environment
     map = False
     positions = False
     steps_to_other = False
     pig_neighbours = False
+
+    # Searches
     own_plans = False
     challenger_plans = False
     detailed_plans = False
+
+    # Timing
+    real_time_timing = False
+    game_timing = False
+
+    # Features
     feature_vector = False
     feature_matrix = False
+
+    # Decision making
+    helmet_detection = True
     challenger_strategy = True
     waiting_info = True
     repeated_waiting_info = False
@@ -113,7 +83,9 @@ class DanishPuppet(BaseAgent):
     ACTIONS = AllActions()
     BASIC_ACTIONS = AllActions(move=(1,), strafe=())
 
-    def __init__(self, name, visualizer=None, wait_for_pig=True, use_markov=True):
+    LEAVE_TIME = 100
+
+    def __init__(self, name, helmets, visualizer=None, wait_for_pig=True, use_markov=True):
         super(DanishPuppet, self).__init__(name, len(DanishPuppet.ACTIONS), visualizer)
         self._previous_target_pos = None
         self._action_list = []
@@ -123,15 +95,19 @@ class DanishPuppet(BaseAgent):
         self.first_act_call = True
 
         # Features and memory
-        self.game_observer = GameObserver()
+        self.game_features_history = []
+        self.game_observer = GameObserver(helmets=helmets)
         self.game_features = FeatureSequence()
-        self.game_summary_history = Queue(maxsize=MEMORY_SIZE)
+        self.game_summary_history = Queue(maxsize=SUMMARY_HISTORY_SIZE)
 
         # Timing and iterations
         self.n_moves = -1
         self.n_games = 0
         self.n_total_moves = 0
         self.time_start = time.time()
+
+        # In-game timer
+        self.game_timer = GameTimer()
 
         # Pig stuff
         self.waiting_for_pig = False
@@ -144,9 +120,8 @@ class DanishPuppet(BaseAgent):
         self.helmet_detector.load_classifier()
 
         # Decision making
-        self.use_markov = use_markov
-        self.markov_model = None
-        self.game_features_history = []
+        self.brain = Brain(use_markov=use_markov,
+                           helmets=helmets)
 
     def time_alive(self):
         return time.time() - self.time_start
@@ -164,17 +139,20 @@ class DanishPuppet(BaseAgent):
                                    final_state=state,
                                    pig_is_caught=GameObserver.was_pig_caught(prize=prize))
 
+        self.game_summary_history.put(game_summary)
         if Print.game_summary:
-            print("\nGame Summary:")
+            print("\nGame Summary {}:".format(len(self.game_features_history)))
             print("   {}".format(game_summary))
             print("   From reward-sequence: {}".format(reward_sequence))
 
-        self.game_summary_history.put(game_summary)
         self.game_features_history.append(self.game_features)
         if len(self.game_features_history) > SAMPLES_IN_MEMORY:
-            self.game_features_history = random.sample(self.game_features_history, SAMPLES_IN_MEMORY)
+            print("Storing data-history.")
+            pickle.dump(self.game_features_history, Path("../data_dumps/game_features_history.p").open("wb"))
+            self.game_features_history = random.sample(self.game_features_history,
+                                                       int(SAMPLES_IN_MEMORY * 0.95))
 
-    def act(self, state, reward, done, is_training=False, frame=None):
+    def act(self, state, reward, done, total_time=None, is_training=False, frame=None):
 
         if Print.act_reached:
             print("DanishPuppet.act() called")
@@ -196,10 +174,11 @@ class DanishPuppet(BaseAgent):
                 self.initial_waits = True
                 self.game_observer.reset()
                 self.helmet_detector.reset()
+                self.game_timer.reset()
 
                 self.n_games += 1
 
-                if Print.timing:
+                if Print.real_time_timing:
                     c_time = self.time_alive()
                     print("\nTiming stats:")
                     print("\tNumber of games: {}".format(self.n_games))
@@ -211,6 +190,12 @@ class DanishPuppet(BaseAgent):
         else:
             self.first_act_call = True
 
+        # Game time
+        self.game_timer.update(total_time=total_time)
+
+        if Print.game_timing:
+            print("\nTime left: {}".format(self.game_timer.time_left))
+
         ###############################################################################
         # If pig is not in a useful place - wait
         print_if(Print.code_line_print, "CODE: Considering pregame-wait")
@@ -220,29 +205,8 @@ class DanishPuppet(BaseAgent):
             time.sleep(SECONDS_WAIT_BEFORE_IMAGE)
             self.initial_waits = False
 
-            ##############
-            # Do markov model training
-
-            # Training data
-            X = list(DEFAULT_SEQUENCES)
-
-            # Add history
-            for game_features in self.game_features_history:
-                X.append([ENCODE_EMISSION[tuple(val.to_vector())]
-                          for val in game_features.features])
-
-            # Ensure format
-            lengths = [len(row) for row in X]
-            X = np.atleast_2d(np.concatenate(X))
-
-            # Create model
-            self.markov_model = MultinomialHMM(n_components=2,
-                                               n_iter=100)
-
-            # Train on data
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                self.markov_model.fit(X.T, lengths=lengths)
+            # Do training
+            self.brain.train(game_features_history=self.game_features_history)
 
             # Send wait action to get a refreshed frame
             return DanishPuppet.ACTIONS.wait
@@ -331,6 +295,24 @@ class DanishPuppet(BaseAgent):
         challenger_pig_plans = [plan for plan in challengers_plans if plan.target == Plan.PigCatch]
 
         ###############################################################################
+        # If no time left - leave game
+        print_if(Print.code_line_print, "CODE: Considering to leave if clock runs out")
+
+        if self.game_timer.time_left < DanishPuppet.LEAVE_TIME:
+            print("Time's running out! Getting out of here!")
+
+            # Exit plans
+            exit_plans = [plan for plan in own_plans
+                          if plan.target == Plan.Exit]
+
+            # Find nearest exit
+            path = sorted(exit_plans, key=lambda x: -x.utility)[0]
+
+            # Return next action
+            action = path[1].action
+            return action
+
+        ###############################################################################
         # If pig is not in a useful place - wait
         print_if(Print.code_line_print, "CODE: Considering pig-wait")
 
@@ -401,74 +383,10 @@ class DanishPuppet(BaseAgent):
         # Determine challengers strategy
         print_if(Print.code_line_print, "CODE: Determining challenger strategy")
 
-        # Strategies are:
-        # 0: Initial round (no information)
-        # 1: Random-walk Idiot
-        # 2: Naive Cooperative
-        # 3: Optimal Cooperative
-        # 4: Douche
-        # 5: Pig can be caught by one person
-
-        if not self.use_markov:
-
-            # Data on past
-            compliances = np.array([feature.compliance for feature in self.game_features.features])
-
-            # Check if pig can be caught alone
-            if len(own_pig_plans) == 1:
-                challenger_strategy = 5
-
-            # Base predicted strategy on compliance of challenger
-            elif compliances.mean() < 0.5:
-                challenger_strategy = 1
-            else:
-                challenger_strategy = 2
-
-        ###############################################################################
-        # Markov-modelling
-
-        else:
-
-            # Observed sequence
-            observed = np.array([ENCODE_EMISSION[tuple(val.to_vector())]
-                                 for val in self.game_features.features])
-
-            # Get helmet
-            helmet = current_challenger + 1
-
-            # Sequence emissions
-            helping_emission = (helmet, 1, 0)
-            backstabbing_emission = (helmet, 0, 1)
-
-            # Generated sequences
-            sequence_lengths = 5
-            helping_sequence = np.hstack([observed, np.array([ENCODE_EMISSION[helping_emission]] * sequence_lengths)])
-            backstabbing_sequence = np.hstack(
-                [observed, np.array([ENCODE_EMISSION[backstabbing_emission]] * sequence_lengths)])
-
-            # Flipping sequence
-            flip_sequence = []
-            for ____ in range(sequence_lengths // 2):
-                flip_sequence.extend([ENCODE_EMISSION[helping_emission], ENCODE_EMISSION[backstabbing_emission]])
-            if (sequence_lengths % 2) > 0:
-                flip_sequence.append(ENCODE_EMISSION[helping_emission])
-            flip_sequence = np.hstack([observed, np.array(flip_sequence)])
-
-            # Likelihoods
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                likelihoods = []
-                for sequence in [helping_sequence, flip_sequence, backstabbing_sequence]:
-                    likelihoods.append(np.exp(self.markov_model.score(sequence)))
-                likelihoods = np.array(likelihoods) / sum(likelihoods)
-
-            print("Challenger strategy: good {}, flipping {}, bad {}".format(*likelihoods))
-
-            # Determine strategy
-            if max(likelihoods[1:]) > likelihoods[0] * 2:
-                challenger_strategy = 1
-            else:
-                challenger_strategy = 0
+        challenger_strategy = self.brain.infer_challenger_strategy(game_features=self.game_features,
+                                                                   helmet=current_challenger,
+                                                                   own_plans=own_plans,
+                                                                   verbose=Print.challenger_strategy)
 
         ###############################################################################
         # Manual overwrite
@@ -486,10 +404,11 @@ class DanishPuppet(BaseAgent):
         # Determine plan based on challengers strategy
         print_if(Print.code_line_print, "CODE: Selecting plan based on strategy")
 
-        # If challenger is an idiot or a douche - backstab him!
-        if challenger_strategy in {1, 4}:
+        # If challenger is an idiot or a bad-guy - backstab him!
+        if challenger_strategy in {Strategies.random_walker,
+                                   Strategies.bad_guy}:
             if Print.challenger_strategy:
-                print("\nChallenger seems to be an idiot.")
+                print("Challenger seems to be an idiot.")
 
             # Exit plan
             plan = sorted([plan for plan in own_plans if plan.target == Plan.Exit],
@@ -499,18 +418,21 @@ class DanishPuppet(BaseAgent):
             action = plan[1].action
             return action
 
-        # If challenger is naive cooperative - go to the pig on the side farthest from him!
-        elif challenger_strategy in {0, 2, 3, 5}:
+        # If optimistic - go to the pig
+        elif challenger_strategy in {Strategies.initial_round,
+                                     Strategies.naive_cooperative,
+                                     Strategies.optimal_cooperative,
+                                     Strategies.irrelevant}:
             if Print.challenger_strategy:
-                if challenger_strategy == 0:
-                    print("\nFirst round. Challenger is assumed compliant.")
-                elif challenger_strategy == 5:
-                    print("\nCatching pig on my own!")
+                if challenger_strategy == Strategies.initial_round:
+                    print("First round. Challenger is assumed compliant.")
+                elif challenger_strategy == Strategies.irrelevant:
+                    print("Catching pig on my own!")
                 else:
-                    print("\nChallenger seems compliant.")
+                    print("Challenger seems compliant.")
 
             # Check if pig can be caught by one person - then catch it!
-            if challenger_strategy == 5:
+            if challenger_strategy == Strategies.irrelevant:
                 own_pig_plan = own_pig_plans[0]
                 action = own_pig_plan[1].action
                 return action

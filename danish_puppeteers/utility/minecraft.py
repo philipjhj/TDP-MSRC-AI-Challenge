@@ -30,6 +30,27 @@ def map_view(state):
     return "\n".join(string_rows)
 
 
+class GameTimer:
+    TOTAL_TIME_FACTOR = 1. / 20.
+    TOTAL_GAME_TIME = 1000.
+
+    def __init__(self):
+        self._start_time = None
+        self.time_left = None
+
+    def reset(self):
+        self._start_time = None
+        self.time_left = None
+
+    def update(self, total_time):
+        if self._start_time is None:
+            self._start_time = total_time
+            self.time_left = GameTimer.TOTAL_GAME_TIME
+        else:
+            self.time_left = GameTimer.TOTAL_GAME_TIME - \
+                             (total_time - self._start_time) * GameTimer.TOTAL_TIME_FACTOR
+
+
 class GameSummary:
     def __init__(self, feature_matrix, reward, prize, final_state, pig_is_caught):
         self.feature_matrix = feature_matrix
@@ -46,7 +67,7 @@ class GameSummary:
 
 
 class GameObserver:
-    def __init__(self):
+    def __init__(self, helmets):
         self._entities = None
 
     def reset(self):
@@ -136,8 +157,7 @@ class GameObserver:
             return AllActions.jump
 
     def get_entities(self):
-        for key, val in self._entities.values():
-            yield key, val
+        return list(self._entities.values())
 
     def create_entity_positions(self, state, entities):
         # Parse positions from grid
