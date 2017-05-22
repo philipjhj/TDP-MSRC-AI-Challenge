@@ -52,4 +52,6 @@ More information can be found in the
 See a [video here](https://www.youtube.com/watch?v=T8afN7Kjo3E&feature=youtu.be) demonstrating our agent in action.
 
 ## Results
-Our results based on the *pig_chase_eval_sample.py* script can be seen [here](https://malmo-leaderboard.azurewebsites.net/). The experiment name matches the method used. A few details on the results are given here:
+Our results based on the *pig_chase_eval_sample.py* script can be seen [here](https://malmo-leaderboard.azurewebsites.net/). The experiment name matches the method used.
+
+* We had technical issues with the evaluation script when we ran it with our agent using the HMM.
