@@ -71,3 +71,13 @@ prizes of the game to make a decision of whether the challenging agent is cooper
 
 Due to the limitations of the HMM-implementation, all three observable variables are combined into one observable
 variable, with a total of 27 possible values.
+
+## Other Notes
+
+* We realized that the MineCraft server allows for the agents to strafe, and we allowed our agent to take advantage of this.
+* Since the pig might be in a position where it is impossible to catch, we implemented the option for our agent to wait until it moved to a better position
+
+## Improvements and future work
+
+* Use the standstil and bad_guy (heading directly for the exit) agents from the implemented ChallengerFactory
+* Design better features and generate better training data for the HMM
