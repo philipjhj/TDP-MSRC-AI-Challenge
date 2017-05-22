@@ -41,7 +41,7 @@ sys.path.insert(0, os.getcwd())
 sys.path.insert(1, os.path.join(os.path.pardir, os.getcwd()))
 
 BASELINES_FOLDER = 'results/baselines/pig_chase/%s/%s'
-EPOCH_SIZE = 300000
+EPOCH_SIZE = 250000
 
 HUMAN_SPEED = False
 
@@ -182,7 +182,7 @@ if __name__ == '__main__':
     arg_parser.add_argument('-t', '--type', type=str, default='danish',
                             choices=['astar', 'random'],
                             help='The type of baseline to run.')
-    arg_parser.add_argument('-e', '--epochs', type=int, default=5,
+    arg_parser.add_argument('-e', '--epochs', type=int, default=1,
                             help='Number of epochs to run.')
     arg_parser.add_argument('clients', nargs='*',
                             default=['127.0.0.1:10000', '127.0.0.1:10001'],

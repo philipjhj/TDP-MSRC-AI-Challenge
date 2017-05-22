@@ -32,7 +32,7 @@ services:
         - /home/docker-user/results:/root/malmo-challenge/ai_challenge/danish_puppeteers/results/
       environment:
         - PYTHONPATH=/root/malmo-challenge/ai_challenge/pig_chase/:/root/Malmo/Python_Examples/
-      command: bash -c "tensorboard --logdir 'results' --port 6006 & python pig_chase_danish_puppet.py malmo1:10000 malmo2:10000"
+      command: bash -c "tensorboard --logdir 'results' --port 6006 & python ${PYTHON_SCRIPT_PATH}.py malmo1:10000 malmo2:10000"
       ports:
         - "6006:6006"
       links:

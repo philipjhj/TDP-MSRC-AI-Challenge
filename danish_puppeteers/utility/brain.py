@@ -4,6 +4,7 @@ import random
 import warnings
 from collections import Counter
 from itertools import product
+from collections import Counter
 
 import numpy as np
 from hmmlearn.hmm import MultinomialHMM
@@ -15,6 +16,8 @@ from utility.constants import CellGoalType, PIG_CATCH_PRIZE, EXIT_PRICE
 from utility.ml import FeatureSequence
 from utility.util import Paths, ensure_folder
 
+import fnmatch
+import os
 
 class Strategies:
     """
@@ -277,15 +280,17 @@ class Brain:
         prob_indifferent_exit = np.dot(sum([self.markov_model.emissionprob_[:, idx]
                                             for idx in self.emissions_indifferent_exit]), prop_state)
         
-        bad_or_neutral = prob_indifferent_pig + prob_away_from_pig
+	indifferent_ratio_=1
+        bad_or_neutral = prob_away_from_pig+(1-indifferent_ratio_)*prob_indifferent_pig
+	good = prob_towards_pig+indifferent_ratio_*prob_indifferent_pig
         
         if verbose:
-            print("Chellender state: {}".format(prop_state))
-            print("Challenger strategy: good {:.2%}, bad-or-neutral {:.2%}".format(prob_towards_pig,
+            #print("Chellender state: {}".format(prop_state))
+            print("Challenger strategy: good {:.2%}, bad-or-neutral {:.2%}".format(good,
                                                                                 bad_or_neutral))
 
         # Determine strategy
-        if bad_or_neutral > prob_towards_pig * (PIG_CATCH_PRIZE / EXIT_PRICE):
+        if bad_or_neutral > good:
             challenger_strategy = Strategies.random_walker
         else:
             challenger_strategy = Strategies.naive_cooperative
@@ -296,11 +301,12 @@ class Brain:
 if __name__ == "__main__":
     print("Training a brain!\n" + "-"*25 + "\n")
     # Folder with training data
-    folder_path = Paths.brain_training_data
+    folder_path = Paths.brain_training_data_load
 
     # Get all files
     print("Finding all data-files")
     file_base_name = "game_"
+
     files_in_directory = []
     for root, dir_names, file_names in os.walk(str(folder_path)):
         for filename in fnmatch.filter(file_names, '*.p'):
@@ -309,15 +315,18 @@ if __name__ == "__main__":
 
     # Get all data
     data_history = [pickle.load(c_file_path.open("rb")) for c_file_path in files_in_directory]
+    print(len(files_in_directory))
 
     # Find number of helmets
     helmets = set()
     counter = Counter()
+
     for data in data_history:
         if data:
             helmets.update(data.to_matrix()[:, 0])
             for val in list(set(data.to_matrix()[:, 0])):
                 counter[val] += 1
+
     helmets.remove(-1)
     helmets = sorted(list(helmets))
     print("Helmet-counts found in data: {}".format(counter))

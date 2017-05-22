@@ -19,17 +19,14 @@ import os
 import sys
 from time import sleep
 
+from common import parse_clients_args, ENV_AGENT_NAMES
 from agent import PigChaseChallengeAgent
-from challenger_factory import ChallengerFactory
 from common import ENV_AGENT_NAMES
-from danish_puppet import DanishPuppet
 from environment import PigChaseEnvironment, PigChaseSymbolicStateBuilder
 
 # Enforce path
 sys.path.insert(0, os.getcwd())
 sys.path.insert(1, os.path.join(os.path.pardir, os.getcwd()))
-
-EVAL_EPISODES = 100
 
 
 class PigChaseEvaluator(object):
@@ -51,7 +48,7 @@ class PigChaseEvaluator(object):
         uploaded a file with the same experiment name.
         
         :param experiment_name: An identifier for the experiment
-        :param Path filepath: Path where to store the results file
+        :param filepath: Path where to store the results file
         :return: 
         """
 
@@ -65,14 +62,18 @@ class PigChaseEvaluator(object):
         # Compute metrics
         metrics = {key: {'mean': mean(buffer),
                          'var': var(buffer),
-                         'count': len(buffer)}
+                         'count': len(buffer)} 
                    for key, buffer in self._accumulators.items()}
 
         metrics['experimentname'] = experiment_name
 
         try:
-	    
-            with filepath.open("wb") as f_out:
+            filepath = abspath(filepath)
+            parent = join(filepath,pardir)
+            if not exists(parent):
+                makedirs(parent)
+
+            with open(filepath, 'w') as f_out:
                 dump(metrics, f_out)
 
             print('==================================')
@@ -85,9 +86,7 @@ class PigChaseEvaluator(object):
         from multiprocessing import Process
 
         env = PigChaseEnvironment(self._clients, self._state_builder,
-                                  actions=DanishPuppet.ACTIONS.all_commands(),
-                                  role=1,
-                                  randomize_positions=True)
+                                  role=1, randomize_positions=True)
         print('==================================')
         print('Starting evaluation of Agent @100k')
 
@@ -112,93 +111,34 @@ def run_challenge_agent(clients):
     env = PigChaseEnvironment(clients, builder, role=0,
                               randomize_positions=True)
     agent = PigChaseChallengeAgent(ENV_AGENT_NAMES[0])
-    challenger_agent_loop(agent, env, None)
+    agent_loop(agent, env, None)
 
 
 def agent_loop(agent, env, metrics_acc):
-    """
-    :param DanishPuppet agent: 
-    :param env: 
-    :param metrics_acc: 
-    """
+    EVAL_EPISODES = 1
     agent_done = False
     reward = 0
     episode = 0
-    state = env.reset()
-    viz_rewards = []
+    obs = env.reset()
 
     while episode < EVAL_EPISODES:
-        # Check if env needs reset
+        # check if env needs reset
         if env.done:
-            print('Episode %d (%.2f)%%' % (episode, (float(episode) / EVAL_EPISODES) * 100.))
+            print('Episode %d (%.2f)%%' % (episode, (episode / EVAL_EPISODES) * 100.))
 
-            agent.note_game_end(reward_sequence=viz_rewards,
-                                state=state[0])
-            print("")
-            viz_rewards = []
-
-            state = env.reset()
-            while state is None:
+            obs = env.reset()
+            while obs is None:
                 # this can happen if the episode ended with the first
                 # action of the other agent
                 print('Warning: received obs == None.')
-                state = env.reset()
+                obs = env.reset()
 
             episode += 1
 
-        # Get frame
-        frame = env.frame
-
-        # Select an action
-        action = None
-        while action is None:
-            state = env.state
-            action = agent.act(state=state,
-                               reward=reward,
-                               done=agent_done,
-                               is_training=True,
-                               frame=frame)
-
-            # 'wait'
-            if action == DanishPuppet.ACTIONS.wait:
-                action = None
-                sleep(4e-3)
-                state = env.state
-
+        # select an action
+        action = agent.act(obs, reward, agent_done, is_training=True)
         # take a step
-        state, reward, agent_done = env.do(action)
-        viz_rewards.append(reward)
-
-        if metrics_acc is not None:
-            metrics_acc.append(reward)
-
-
-def challenger_agent_loop(agent, env, metrics_acc):
-    agent_done = False
-    reward = 0
-    episode = 0
-    agent_type = ChallengerFactory.get_agent_type(agent.current_agent)
-    state = env.reset(agent_type)
-    print("Agent Factory: Assigning {}.".format(type(agent.current_agent).__name__))
-
-    while episode < EVAL_EPISODES:
-
-	# select an action
-        action = agent.act(state, reward, agent_done, is_training=True)
-
-        # check if env needs reset
-        if env.done:
-
-            state = None
-            while state is None:
-                agent_type = ChallengerFactory.get_agent_type(agent.current_agent)
-                state = env.reset(agent_type)
-                print("Agent Factory: Assigning {}.".format(type(agent.current_agent).__name__))
-
-            episode += 1
-        
-        # take a step
-        state, reward, agent_done = env.do(action)
+        obs, reward, agent_done = env.do(action)
 
         if metrics_acc is not None:
             metrics_acc.append(reward)

@@ -2,10 +2,15 @@ from pathlib2 import Path
 
 
 class Paths:
-    brain_training_data = Path("..", "danish_puppeteers", "results", "training_data")
-    brain_models = Path("..", "danish_puppeteers", "results", "brains")
-    helmet_data = Path("..", "danish_puppeteers", "results", "helmet_data")
-    helmet_training_data = Path("..", "danish_puppeteers", "results", "helmet_data", "raw_data")
+    results_root_path = Path("..","danish_puppeteers","results")
+    resources_root_path = Path("..","danish_puppeteers","resources")
+
+    brain_training_data_save = Path(results_root_path, "training_data")
+    brain_training_data_load = Path(results_root_path, "remoteResults")
+
+    brain_models = Path(resources_root_path, "brains")
+    helmet_data = Path(resources_root_path, "helmet_data")
+    helmet_training_data = Path(resources_root_path, "helmet_data", "raw_data")
 
 
 def get_dir(path):

@@ -1,15 +1,24 @@
 #!/bin/bash
+MACHINENAME=${1:-microsoftaicompd12}
+PYTHON_SCRIPT_PATH=${2:-pig_chase_jumper}
 
-machinename=microsoftaicompd12
-docker_path=../../docker
+DOCKER_PATH=../../docker
 
-#eval $(docker-machine env $machinename)
+eval $(docker-machine env $MACHINENAME)
 
-docker build $docker_path/malmo -t malmo:latest
-docker build $docker_path/malmopy-cntk-cpu-py27 -t malmopy-cntk-cpu-py27:latest
+
+docker build $DOCKER_PATH/malmo -t malmo:latest
+docker build $DOCKER_PATH/malmopy-cntk-cpu-py27 -t malmopy-cntk-cpu-py27:latest
 docker build ../danish_puppeteers -t danishpuppet:latest
 
+# Open tensorboard results
+#xdg-open http://$(docker-machine ip $MACHINENAME):6006 &
 
-xdg-open http://$(docker-machine ip $machinename):6006 &
+# Set variable PYTHON_SCRIPT_NAME to experiment file in .env
+# and refer to ${PYTHON_SCRIPT_NAME} for the command in the
+# docker compose file.
+# https://docs.docker.com/compose/environment-variables/#the-env-file
 
-docker-compose up 
+echo "PYTHON_SCRIPT_PATH=$PYTHON_SCRIPT_PATH" > .env
+
+docker-compose up

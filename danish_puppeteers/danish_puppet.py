@@ -74,7 +74,7 @@ class Print:
     # Decision making
     helmet_detection = True
     challenger_strategy = True
-    waiting_info = True
+    waiting_info = False
     repeated_waiting_info = False
 
     # Post game

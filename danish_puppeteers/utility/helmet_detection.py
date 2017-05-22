@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib2 import Path
 from sklearn import svm
+import os
 
 from utility.ai import GamePlanner, EntityPosition
 from utility.constants import HELMET_NAMES
@@ -25,6 +26,18 @@ class HelmetDetector:
         self.helmet_probabilities = np.ones(4)
 
         # Get base-sky
+	print('********************************')
+	print(os.getcwd())
+	print('********************************')
+	for val in Paths.helmet_data.glob('*.p'):
+	    print('********************************')
+	    print('********************************')
+	    print('********************************')
+	    print(val)
+	    print('********************************')
+	    print('********************************')
+	    print('********************************')
+	print('********************************')
         path = Path(Paths.helmet_data, "base_sky.p")
         (_, _, _), _, _, frame = pickle.load(path.open("rb"))
         self.base_frame = self.to_matrix(frame)
