@@ -21,17 +21,16 @@ from danish_puppet import DanishPuppet
 from environment import PigChaseSymbolicStateBuilder
 from evaluation import PigChaseEvaluator
 from utility.util import ensure_folder
-import datetime
 
 if __name__ == '__main__':
     # Warn for Agent name !!!
 
     clients = [('127.0.0.1', 10000), ('127.0.0.1', 10001)]
-    agent = DanishPuppet(ENV_AGENT_NAMES[1], helmets=[0, 1], use_markov=True)
+    agent = DanishPuppet(ENV_AGENT_NAMES[1], helmets=[0, 1], use_markov=False)
 
     eval = PigChaseEvaluator(clients, agent, agent, PigChaseSymbolicStateBuilder())
     eval.run()
 
     folder_path = Path("..", "evaluations")
     ensure_folder(folder_path)
-    eval.save('My Exp 1', Path(folder_path, "pig_chase_results"+datetime.datetime.now().strftime("%YY_%m_%d_%H_%M_%S")+".json"))
+    eval.save('My Exp 1', Path(folder_path, "pig_chase_results.json"))

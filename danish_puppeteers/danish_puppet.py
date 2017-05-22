@@ -74,7 +74,7 @@ class Print:
     # Decision making
     helmet_detection = True
     challenger_strategy = True
-    waiting_info = False
+    waiting_info = True
     repeated_waiting_info = False
 
     # Post game
@@ -148,7 +148,7 @@ class DanishPuppet(BaseAgent):
             print("   {}".format(game_summary))
             print("   From reward-sequence: {}".format(reward_sequence))
 
-        self.game_features_history.append(self.game_features)
+        # self.game_features_history.append(self.game_features)
         # if len(self.game_features_history) > SAMPLES_IN_MEMORY:
         #     print("Storing data-history.")
         #     folder_path = Path("..", "data_dumps")
@@ -393,7 +393,10 @@ class DanishPuppet(BaseAgent):
 
         challenger_strategy = self.brain.infer_challenger_strategy(game_features=self.game_features,
                                                                    own_plans=own_plans,
-                                                                   verbose=Print.challenger_strategy)
+                                                                   verbose=Print.challenger_strategy,
+                                                                   helmet_and_prob=(current_challenger,
+                                                                                    helmet_probabilities[
+                                                                                        current_challenger]))
 
         ###############################################################################
         # Manual overwrite

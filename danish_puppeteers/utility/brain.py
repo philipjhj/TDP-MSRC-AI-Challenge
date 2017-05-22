@@ -198,7 +198,7 @@ class Brain:
         self.emissions_indifferent_exit = [emission_code for emission_code in self.possible_emissions
                                            if self.decode_emission[emission_code][2] == 0]
 
-    def infer_challenger_strategy(self, game_features, own_plans, verbose=False):
+    def infer_challenger_strategy(self, game_features, own_plans, helmet_and_prob=None, verbose=False):
         """
         Infers the strategy of the challenger in order to make decisions from there on.
         :param FeatureSequence game_features: The sequence of features observed in this game.
@@ -212,10 +212,11 @@ class Brain:
                                                 verbose=verbose)
         else:
             return self._decide_simple_heuristic(game_features=game_features,
-                                                 own_plans=own_plans)
+                                                 own_plans=own_plans,
+                                                 helmet_and_prob=helmet_and_prob)
 
     @staticmethod
-    def _decide_simple_heuristic(game_features, own_plans):
+    def _decide_simple_heuristic(game_features, own_plans, helmet_and_prob=None):
         """
         Uses a simple heuristic to decide what to do. 
         Does not use any information from the helmets and does not learn anything.
@@ -236,6 +237,12 @@ class Brain:
         elif compliances.mean() < 0.4:
             challenger_strategy = Strategies.random_walker
         else:
+            challenger_strategy = Strategies.naive_cooperative
+
+        # Helmet information overrides
+        if helmet_and_prob[0] == 0 and helmet_and_prob[1] > 0.5:
+            challenger_strategy = Strategies.random_walker
+        elif helmet_and_prob[0] == 1 and helmet_and_prob[1] > 0.5:
             challenger_strategy = Strategies.naive_cooperative
 
         return challenger_strategy

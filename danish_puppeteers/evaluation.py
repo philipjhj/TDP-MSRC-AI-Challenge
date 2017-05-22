@@ -132,9 +132,9 @@ def agent_loop(agent, env, metrics_acc):
         if env.done:
             print('Episode %d (%.2f)%%' % (episode, (float(episode) / EVAL_EPISODES) * 100.))
 
-            agent.note_game_end(reward_sequence=viz_rewards,
-                                state=state[0])
-            print("")
+            # agent.note_game_end(reward_sequence=viz_rewards,
+            #                     state=state[0])
+            print(viz_rewards)
             viz_rewards = []
 
             state = env.reset()
