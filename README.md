@@ -16,7 +16,7 @@ mv danish_puppeteers/master/* danish_puppeteers/
 rm -r danish_puppeteers/master/
 cd danish_puppeteers
 ```
-Add the *pig_chase* and *danish_puppeteers* to your python path by using the command `export PYTHONPATH=$PYTHONPATH:<path to ai_challenge>/ai_challenge/danish_puppeteers`. After this you should be able to run the evaluation script `python pig_chase_eval_sample.py` or any of the other scripts.
+Add the *pig_chase* and *danish_puppeteers* folders to your python path by using the command `export PYTHONPATH=$PYTHONPATH:<path to ai_challenge>/ai_challenge/danish_puppeteers` respectively. After this you should be able to run the evaluation script `python pig_chase_eval_sample.py` or any of the other scripts.
 
 To run a script with docker on an Azure machine created with docker-machine, run
 ```
