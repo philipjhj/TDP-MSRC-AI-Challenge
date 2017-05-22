@@ -16,7 +16,7 @@ mv danish_puppeteers/master/* danish_puppeteers/
 rm -r danish_puppeteers/master/
 cd danish_puppeteers
 ```
-1. Run the evaluation script `python pig_chase_eval_sample.py` or any of the other scripts
+Remember to add all the necessary files to your PYTHONPATH. After this you should be able to run the evaluation script `python pig_chase_eval_sample.py` or any of the other scripts
 
 To run a script with docker on an Azure machine, run
 ```
@@ -48,7 +48,21 @@ determine whether the challengers intentions are cooperative or non-cooperative.
 
 More information can be found in the 
 [Documentation](https://github.com/philipjhj/TDP-MSRC-AI-Challenge/blob/master/Documentation.md)-file.
+## Demo
+See a [video here](INSERT VIDEO LINK HERE) demonstrating our agent in action.
 
-## Future Work
+## Results
+Our results based on the *pig_chase_eval_sample.py* script can be seen [here](https://malmo-leaderboard.azurewebsites.net/). The experiment name matches the method used. A few details on the results are given here:
 
-* Use the standstil and bad_guy (heading directly for the exit) agents from the ChallengerFactory
+* **Guided Danish Puppet** Setting the threshold of trust to 60% positive moves turned out extremely well when playing with the PigChaseAgent. We achieved one of the highest scores of all the participants with this simple approach.
+* **Stringless Danish Puppet** 
+
+## Other Notes
+
+* We realized that the MineCraft server allows for the agents to strafe, and we allowed our agent to take advantage of this.
+* Since the pig might be in a position where it is impossible to catch, we implemented the option for our agent to wait until it moved to a better position
+
+## Improvements and future work
+
+* Use the standstil and bad_guy (heading directly for the exit) agents from the implemented ChallengerFactory
+* Design better features and generate better training data for the HMM
