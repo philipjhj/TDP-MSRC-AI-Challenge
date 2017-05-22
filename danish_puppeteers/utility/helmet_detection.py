@@ -8,15 +8,9 @@ import numpy as np
 from pathlib2 import Path
 from sklearn import svm
 
-
-from ai import GamePlanner, EntityPosition
-
-HELMET_NAMES = [
-    "iron_helmet",
-    "golden_helmet",
-    "diamond_helmet",
-    "leather_helmet"
-]
+from utility.ai import GamePlanner, EntityPosition
+from utility.constants import HELMET_NAMES
+from utility.util import Paths
 
 
 class HelmetDetector:
@@ -25,13 +19,13 @@ class HelmetDetector:
     Very domain-specific and trained on data from this game.
     Uses an SVM for classifying helmets and can only detect the four helmet found in the pig-chase environment. 
     """
-    def __init__(self, retrain=False, storage_path="../storage"):
+    def __init__(self, retrain=False):
         self.hats = list(range(4))
         self.classifier = None
         self.helmet_probabilities = np.ones(4)
 
         # Get base-sky
-        path = Path(storage_path, "base_sky.p")
+        path = Path(Paths.helmet_data, "base_sky.p")
         (_, _, _), _, _, frame = pickle.load(path.open("rb"))
         self.base_frame = self.to_matrix(frame)
         self.base_sky = self.get_sky(frame)
@@ -46,13 +40,11 @@ class HelmetDetector:
         """
         self.helmet_probabilities = np.ones(4)
 
-    def train_from_path(self, data_path=None):
+    def train_from_path(self):
         """
-        Trains helmet-detector from data-files in the path.
-        :param Path data_path: 
+        Trains helmet-detector from data-files in the designated path.
         """
-        if data_path is None:
-            data_path = Path("..", "data")
+        data_path = Paths.helmet_training_data
 
         # Folders with data
         hat_folders = [Path(data_path, "hat_{}".format(idx))
@@ -95,7 +87,7 @@ class HelmetDetector:
         :param Path path: 
         """
         if path is None:
-            path = Path("..", "danish_puppeteers", "storage", "helmet_classifier.p")
+            path = Path(Paths.helmet_data, "helmet_classifier.p")
         pickle.dump(self.classifier, path.open("wb"))
 
     def load_classifier(self, path=None):
@@ -104,7 +96,7 @@ class HelmetDetector:
         :param Path path: 
         """
         if path is None:
-            path = Path("..", "danish_puppeteers", "storage", "helmet_classifier.p")
+            path = Path(Paths.helmet_data, "helmet_classifier.p")
         self.classifier = pickle.load(path.open("rb"))
 
     def _helmet_probabilities(self, frame):
@@ -132,8 +124,7 @@ class HelmetDetector:
             return most_probable_hat, probabilities
 
     @staticmethod
-    def store_snapshot(me, challenger, pig, state, frame,
-                       storage_path="../data_dumps"):
+    def store_snapshot(me, challenger, pig, state, frame):
         """
         Stores a snapshot of the current situation (used for creating data for training model).
         :param EntityPosition me: 
@@ -141,9 +132,8 @@ class HelmetDetector:
         :param EntityPosition pig: 
         :param np.array state: 
         :param np.array frame: 
-        :param Path storage_path: 
         """
-        storage_path = Path(storage_path)
+        storage_path = Paths.helmet_training_data
 
         # Find next file-id
         files_in_directory = [str(item.stem) for item in storage_path.glob("*.p")]
@@ -287,10 +277,10 @@ if __name__ == "__main__":
 
     # Helmet examples
     helmet_examples = [
-        Path(r"..\data\hat_0\file_21.p"),
-        Path(r"..\data\hat_1\file_8.p"),
-        Path(r"..\data\hat_2\file_16.p"),
-        Path(r"..\data\hat_3\file_3.p")
+        Path(Paths.helmet_training_data, "hat_0", "file_21.p"),
+        Path(Paths.helmet_training_data, "hat_1", r"file_8.p"),
+        Path(Paths.helmet_training_data, "hat_2", r"file_16.p"),
+        Path(Paths.helmet_training_data, "hat_3", r"file_3.p")
     ]
 
     #########################

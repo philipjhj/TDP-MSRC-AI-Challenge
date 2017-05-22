@@ -1,6 +1,13 @@
 from pathlib2 import Path
 
 
+class Paths:
+    brain_training_data = Path("..", "danish_puppeteers", "results", "training_data")
+    brain_models = Path("..", "danish_puppeteers", "results", "brains")
+    helmet_data = Path("..", "danish_puppeteers", "results", "helmet_data")
+    helmet_training_data = Path("..", "danish_puppeteers", "results", "helmet_data", "raw_data")
+
+
 def get_dir(path):
     """
     Returns the directory of a file, or simply the original path if the path is a directory (has no extension)

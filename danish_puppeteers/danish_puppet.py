@@ -8,10 +8,10 @@ from pathlib2 import Path
 from queue import Queue
 
 from utility.brain import Brain, Strategies
-from utility.constants import AllActions, KeysMapping, CellGoalType
+from utility.constants import AllActions, KeysMapping, CellGoalType, HELMET_NAMES
 from malmopy.agent import BaseAgent
 from utility.ai import GamePlanner
-from utility.helmet_detection import HelmetDetector, HELMET_NAMES
+from utility.helmet_detection import HelmetDetector
 from utility.minecraft import map_view, GameSummary, GameObserver, GameTimer
 from utility.ml import FeatureSequence
 
@@ -118,12 +118,13 @@ class DanishPuppet(BaseAgent):
 
         # Image analysis
         self.initial_waits = True
-        self.helmet_detector = HelmetDetector(storage_path="../danish_puppeteers/storage")
+        self.helmet_detector = HelmetDetector()
         self.helmet_detector.load_classifier()
 
         # Decision making
         self.brain = Brain(use_markov=use_markov,
-                           helmets=helmets)
+                           helmets=helmets,
+                           iterations_per_training=10)
 
     def time_alive(self):
         return time.time() - self.time_start
@@ -391,7 +392,6 @@ class DanishPuppet(BaseAgent):
         print_if(Print.code_line_print, "CODE: Determining challenger strategy")
 
         challenger_strategy = self.brain.infer_challenger_strategy(game_features=self.game_features,
-                                                                   helmet=current_challenger,
                                                                    own_plans=own_plans,
                                                                    verbose=Print.challenger_strategy)
 
@@ -456,7 +456,7 @@ class DanishPuppet(BaseAgent):
                 if Print.waiting_info:
                     print("\nWaiting for challenger to help with pig ...")
                 return GamePlanner.directional_wait_action(entity=me,
-                                                            other_position=challenger)
+                                                           other_position=challenger)
 
             # Return next action (0th element is current position)
             action = own_pig_plan[1].action

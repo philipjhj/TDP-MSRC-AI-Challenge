@@ -3,6 +3,14 @@ PIG_CATCH_PRIZE = 25
 EXIT_PRICE = 5
 
 
+HELMET_NAMES = [
+    "iron_helmet",
+    "golden_helmet",
+    "diamond_helmet",
+    "leather_helmet"
+]
+
+
 class EntityNames:
     """
     Holds the names of in-game entities.

@@ -50,13 +50,6 @@ WAIT_FOR_PIG = True
 PASS_FRAME = True
 
 
-
-
-def get_agent_type(c_agent):
-    return ChallengerFactory.AGENT_TYPE.get(type(c_agent),
-                          PigChaseEnvironment.AGENT_TYPE_3)
-
-
 def agent_factory(name, role, clients, max_epochs,
                   logdir, visualizer, manual=False):
     assert len(clients) >= 2, 'Not enough clients (need at least 2)'
@@ -75,7 +68,7 @@ def agent_factory(name, role, clients, max_epochs,
     # Challenger  (Agent_1)
     if role == 0:
 
-        agent_type = get_agent_type(c_agent.current_agent)
+        agent_type = ChallengerFactory.get_agent_type(c_agent.current_agent)
         state = env.reset(agent_type)
         print("Agent Factory: Assigning {}.".format(type(c_agent.current_agent).__name__))
 
@@ -89,7 +82,7 @@ def agent_factory(name, role, clients, max_epochs,
 
             # reset if needed
             if env.done:
-                agent_type = get_agent_type(c_agent.current_agent)
+                agent_type = ChallengerFactory.get_agent_type(c_agent.current_agent)
                 _ = env.reset(agent_type)
                 print("Agent Factory: Assigning {}.".format(type(c_agent.current_agent).__name__))
 
@@ -118,8 +111,12 @@ def agent_factory(name, role, clients, max_epochs,
             # check if env needs reset
 
             if env.done:
-                c_agent.note_game_end(reward_sequence=viz_rewards,
-                                      state=state[0])
+                try:
+                    c_agent.note_game_end(reward_sequence=viz_rewards,
+                                          state=state[0])
+                except TypeError:
+                    c_agent.note_game_end(reward_sequence=viz_rewards,
+                                          state=None)
                 print("")
                 visualize_training(visualizer, step, viz_rewards)
                 viz_rewards = []

@@ -41,7 +41,7 @@ sys.path.insert(0, os.getcwd())
 sys.path.insert(1, os.path.join(os.path.pardir, os.getcwd()))
 
 BASELINES_FOLDER = 'results/baselines/pig_chase/%s/%s'
-EPOCH_SIZE = 3000000
+EPOCH_SIZE = 300000
 
 HUMAN_SPEED = False
 
@@ -112,8 +112,12 @@ def agent_factory(name, role, clients, max_epochs,
             # check if env needs reset
 
             if env.done:
-                c_agent.note_game_end(reward_sequence=viz_rewards,
-                                      state=state[0])
+                try:
+                    c_agent.note_game_end(reward_sequence=viz_rewards,
+                                          state=state[0])
+                except TypeError:
+                    c_agent.note_game_end(reward_sequence=viz_rewards,
+                                          state=None)
                 print("")
                 visualize_training(visualizer, step, viz_rewards)
                 viz_rewards = []

@@ -1,6 +1,6 @@
 import numpy as np
 
-from constants import CellGoalType
+from utility.constants import CellGoalType
 
 
 class Features:

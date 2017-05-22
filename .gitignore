@@ -1,10 +1,11 @@
 .idea/*
 data_dumps/*
 temp/**
-danish_puppeteers/results/*
 data/**
 
 danish_puppeteers/*.pyc
 danish_puppeteers/*/*.pyc
 danish_puppeteers/*.pyc
 evaluations/*
+danish_puppeteers/results/helmet_data/raw_data/**
+danish_puppeteers/results/training_data/**

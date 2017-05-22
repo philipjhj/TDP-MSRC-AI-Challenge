@@ -1,8 +1,8 @@
 from collections import OrderedDict
 
-from ai import EntityPosition, SearchNode, Location, GamePlanner
-from constants import EntityNames
-from ml import FeatureSequence
+from utility.ai import EntityPosition, SearchNode, Location, GamePlanner
+from utility.constants import EntityNames
+from utility.ml import FeatureSequence
 
 
 def map_view(state):

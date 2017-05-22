@@ -41,6 +41,11 @@ class ChallengerFactory(BaseAgent):
         StandstillAgent: PigChaseEnvironment.AGENT_TYPE_3
     }
 
+    @staticmethod
+    def get_agent_type(c_agent):
+        return ChallengerFactory.AGENT_TYPE.get(type(c_agent),
+                                                PigChaseEnvironment.AGENT_TYPE_3)
+
     def __init__(self, name, visualizer=None, focused=True, random=True, bad_guy=True, standstill=False):
         nb_actions = len(ENV_ACTIONS)
         super(ChallengerFactory, self).__init__(name, nb_actions,

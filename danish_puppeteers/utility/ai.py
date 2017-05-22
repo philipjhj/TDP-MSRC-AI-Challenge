@@ -1,7 +1,7 @@
 from collections import deque
 from heapq import heapify, heappush, heappop
 
-from constants import PIG_CATCH_PRIZE, EXIT_PRICE, AllActions, CellGoalType, Direction
+from utility.constants import PIG_CATCH_PRIZE, EXIT_PRICE, AllActions, CellGoalType, Direction
 
 
 class Location:

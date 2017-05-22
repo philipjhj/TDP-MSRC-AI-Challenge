@@ -20,6 +20,7 @@ import sys
 from time import sleep
 
 from agent import PigChaseChallengeAgent
+from challenger_factory import ChallengerFactory
 from common import ENV_AGENT_NAMES
 from danish_puppet import DanishPuppet
 from environment import PigChaseEnvironment, PigChaseSymbolicStateBuilder
@@ -29,6 +30,7 @@ sys.path.insert(0, os.getcwd())
 sys.path.insert(1, os.path.join(os.path.pardir, os.getcwd()))
 
 EVAL_EPISODES = 100
+
 
 class PigChaseEvaluator(object):
     def __init__(self, clients, agent_100k, agent_500k, state_builder):
@@ -175,18 +177,19 @@ def challenger_agent_loop(agent, env, metrics_acc):
     agent_done = False
     reward = 0
     episode = 0
-    state = env.reset()
+    agent_type = ChallengerFactory.get_agent_type(agent.current_agent)
+    state = env.reset(agent_type)
+    print("Agent Factory: Assigning {}.".format(type(agent.current_agent).__name__))
 
     while episode < EVAL_EPISODES:
         # check if env needs reset
         if env.done:
 
-            state = env.reset()
+            state = None
             while state is None:
-                # this can happen if the episode ended with the first
-                # action of the other agent
-                print('Warning: received obs == None.')
-                state = env.reset()
+                agent_type = ChallengerFactory.get_agent_type(agent.current_agent)
+                state = env.reset(agent_type)
+                print("Agent Factory: Assigning {}.".format(type(agent.current_agent).__name__))
 
             episode += 1
 
