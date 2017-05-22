@@ -363,7 +363,7 @@ class DanishPuppet(BaseAgent):
                 print("\nHelmet not detected.")
 
         # Format for features
-        if current_challenger is None:
+        if current_challenger not in self.brain.helmets:
             current_challenger = -1
 
         ###############################################################################

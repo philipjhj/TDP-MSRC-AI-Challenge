@@ -1,5 +1,8 @@
+import fnmatch
+import os
 import random
 import warnings
+from collections import Counter
 from itertools import product
 
 import numpy as np
@@ -291,34 +294,48 @@ class Brain:
 
 
 if __name__ == "__main__":
+    print("Training a brain!\n" + "-"*25 + "\n")
     # Folder with training data
     folder_path = Paths.brain_training_data
 
     # Get all files
+    print("Finding all data-files")
     file_base_name = "game_"
-    files_in_directory = [item for item in folder_path.glob(file_base_name + "*.p")]
+    files_in_directory = []
+    for root, dir_names, file_names in os.walk(str(folder_path)):
+        for filename in fnmatch.filter(file_names, '*.p'):
+            files_in_directory.append(Path(os.path.join(root, filename)))
+    print("   {} files found".format(len(files_in_directory)))
 
     # Get all data
     data_history = [pickle.load(c_file_path.open("rb")) for c_file_path in files_in_directory]
 
     # Find number of helmets
     helmets = set()
+    counter = Counter()
     for data in data_history:
         if data:
             helmets.update(data.to_matrix()[:, 0])
+            for val in list(set(data.to_matrix()[:, 0])):
+                counter[val] += 1
     helmets.remove(-1)
     helmets = sorted(list(helmets))
-    print("Helmets found in data: {}".format(helmets))
+    print("Helmet-counts found in data: {}".format(counter))
 
     # Make a brain
+    print("Creating brain")
     brain = Brain(use_markov=True, helmets=helmets, iterations_per_training=1, load_markov_from_file=False,
                   n_markov_components=3)
 
     # Train brain
+    print("Training brain")
     brain.train(data_history)
 
     # Store brain
+    print("Storing brain.")
     brain.save_model()
+
+    print("Done.")
 
 
 
