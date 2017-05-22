@@ -18,11 +18,11 @@ cd danish_puppeteers
 ```
 Remember to add all the necessary files to your PYTHONPATH. After this you should be able to run the evaluation script `python pig_chase_eval_sample.py` or any of the other scripts
 
-To run a script with docker on an Azure machine, run
+To run a script with docker on an Azure machine created with docker-machine, run
 ```
 ./run_azure_docker.sh <machine-name> <python-script-name-without-file-extension>
 ```
-
+See more about how to run the challenge with docker [here](https://github.com/Microsoft/malmo-challenge/tree/master/docker)
 ## Idea
 
 Our agent makes a decision of whether a challenging agent is cooperative or not. After making this decision all
@@ -49,7 +49,7 @@ determine whether the challengers intentions are cooperative or non-cooperative.
 More information can be found in the 
 [Documentation](https://github.com/philipjhj/TDP-MSRC-AI-Challenge/blob/master/Documentation.md)-file.
 ## Demo
-See a [video here](INSERT VIDEO LINK HERE) demonstrating our agent in action.
+See a [video here](https://www.youtube.com/watch?v=T8afN7Kjo3E&feature=youtu.be) demonstrating our agent in action.
 
 ## Results
 Our results based on the *pig_chase_eval_sample.py* script can be seen [here](https://malmo-leaderboard.azurewebsites.net/). The experiment name matches the method used. A few details on the results are given here:
