@@ -5,6 +5,24 @@ Pig Chase created in Minecraft.
 Turn to https://www.microsoft.com/en-us/research/academic-program/collaborative-ai-challenge/ for a description about 
 the game and the challenge.
 
+## Running the code
+1. Install the challenge code as described under installation [here](https://github.com/Microsoft/malmo-challenge#installation)
+1. Go into the *ai_challenge* folder in the malmo-challenge and run
+```
+wget https://github.com/philipjhj/TDP-MSRC-AI-Challenge/archive/master.zip
+mkdir danish_puppeteers
+unzip master.zip -d danish_puppeteers
+mv danish_puppeteers/master/* danish_puppeteers/
+rm -r danish_puppeteers/master/
+cd danish_puppeteers
+```
+1. Run the evaluation script `python pig_chase_eval_sample.py` or any of the other scripts
+
+To run a script with docker on an Azure machine, run
+```
+./run_azure_docker.sh <machine-name> <python-script-name-without-file-extension>
+```
+
 ## Idea
 
 Our agent makes a decision of whether a challenging agent is cooperative or not. After making this decision all
@@ -18,7 +36,7 @@ moves towards the pig with 60% of its moves, then it is assumed cooperative othe
 This solution is very specific to the target game and does not include any machine learning methods. It is basically
 an improved version of the A-star agent, in which A-star is run on multiple targets 
 
-#### Mode 2: Stringless Danish Puppet
+#### Mode 2: Stringless Danish Puppet (AKA Pinocchio)
 The other mode uses a Hidden Markov Model in an attempt to model the intention of the challenger. It uses a few
 observable variables as input:
 1. The helmet color
@@ -30,3 +48,7 @@ determine whether the challengers intentions are cooperative or non-cooperative.
 
 More information can be found in the 
 [Documentation](https://github.com/philipjhj/TDP-MSRC-AI-Challenge/blob/master/Documentation.md)-file.
+
+## Future Work
+
+* Use the standstil and bad_guy (heading directly for the exit) agents from the ChallengerFactory

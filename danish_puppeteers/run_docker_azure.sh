@@ -6,7 +6,6 @@ DOCKER_PATH=../../docker
 
 eval $(docker-machine env $MACHINENAME)
 
-
 docker build $DOCKER_PATH/malmo -t malmo:latest
 docker build $DOCKER_PATH/malmopy-cntk-cpu-py27 -t malmopy-cntk-cpu-py27:latest
 docker build ../danish_puppeteers -t danishpuppet:latest

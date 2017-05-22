@@ -54,7 +54,7 @@ class Print:
 
     # Environment
     map = False
-    positions = False
+    positions = True
     steps_to_other = False
     pig_neighbours = False
 
