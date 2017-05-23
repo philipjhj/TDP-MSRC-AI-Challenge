@@ -57,3 +57,11 @@ Our results based on the *pig_chase_eval_sample.py* script can be seen [here](ht
 * We had technical issues with the evaluation script when we ran it with our agent using the HMM.
 
 *Post-competition results and work (especially with respect to the above mentioned problem) may be found in the Developement-branch.*
+
+## Post-competition results
+
+The following results were evaluated after the competition deadline, as we unfortunately had some technical issues with the evaluation script earlier.  
+
+| Experiment name          | Date       | Eval Score @100k | Confidence @ 100k | Eval Score @500k | Confidence @500k |
+| ------------------------ | ---------- | ---------------- | ----------------- | ---------------- | ---------------- | 
+| Stringless Danish Puppet | 23-05-2017 | 0.888            | 1.38              | 1.382            | 1.84             |

@@ -104,9 +104,9 @@ class DanishPuppet(BaseAgent):
 
         # Timing and iterations
         self.n_moves = -1
-        self.n_games = 0
         self.n_total_moves = 0
         self.time_start = time.time()
+        self.n_games = 0
 
         # In-game timer
         self.game_timer = GameTimer()
@@ -144,11 +144,11 @@ class DanishPuppet(BaseAgent):
 
         self.game_summary_history.put(game_summary)
         if Print.game_summary:
-            print("\nGame Summary {}:".format(len(self.game_features_history)))
+            print("\nGame Summary {}:".format(self.n_games))
             print("   {}".format(game_summary))
             print("   From reward-sequence: {}".format(reward_sequence))
 
-        # self.game_features_history.append(self.game_features)
+        self.game_features_history.append(self.game_features)
         # if len(self.game_features_history) > SAMPLES_IN_MEMORY:
         #     print("Storing data-history.")
         #     folder_path = Path("..", "data_dumps")
@@ -202,7 +202,7 @@ class DanishPuppet(BaseAgent):
             print("\nTime left: {}".format(self.game_timer.time_left))
 
         ###############################################################################
-        # If pig is not in a useful place - wait
+        # Pregame-wait 
         print_if(Print.code_line_print, "CODE: Considering pregame-wait")
 
         if self.initial_waits:
@@ -442,7 +442,7 @@ class DanishPuppet(BaseAgent):
                     print("Challenger seems compliant.")
 
             # Check if pig can be caught by one person - then catch it!
-            if challenger_strategy == Strategies.irrelevant:
+            if len(own_pig_plans) == 1:
                 own_pig_plan = own_pig_plans[0]
                 action = own_pig_plan[1].action
                 return action

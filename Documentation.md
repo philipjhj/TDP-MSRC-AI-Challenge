@@ -40,7 +40,10 @@ These problems had to be handled in order for the system to run smoothly. Exampl
   Specifically we had problems if the timer ran out.  
   The connection-failure resulted in the time-out noted in 
   [Issue #30](https://github.com/Microsoft/malmo-challenge/issues/30).
-  
+ 
+#### Helmet detection
+
+Helmets were detected by analysing the pixels of the top region of frames fetched from the environment, and classifying with a pretrained Support Vector Machine.
   
 ## Decision making
 Using the above described planning systems, the agent simply needs to make one decision; is the challenging agent 
@@ -81,3 +84,4 @@ variable, with a total of 27 possible values.
 
 * Use the standstil and bad_guy (heading directly for the exit) agents from the implemented ChallengerFactory
 * Design better features and generate better training data for the HMM
+
