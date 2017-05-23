@@ -18,6 +18,7 @@
 import os
 import sys
 from time import sleep
+from pathlib2 import Path
 
 from agent import PigChaseChallengeAgent
 from challenger_factory import ChallengerFactory
@@ -132,9 +133,8 @@ def agent_loop(agent, env, metrics_acc):
         if env.done:
             print('Episode %d (%.2f)%%' % (episode, (float(episode) / EVAL_EPISODES) * 100.))
 
-            # agent.note_game_end(reward_sequence=viz_rewards,
-            #                     state=state[0])
-            print(viz_rewards)
+            agent.note_game_end(reward_sequence=viz_rewards,
+                                state=state[0])
             viz_rewards = []
 
             state = env.reset()
@@ -182,10 +182,6 @@ def challenger_agent_loop(agent, env, metrics_acc):
     print("Agent Factory: Assigning {}.".format(type(agent.current_agent).__name__))
 
     while episode < EVAL_EPISODES:
-
-	# select an action
-        action = agent.act(state, reward, agent_done, is_training=True)
-
         # check if env needs reset
         if env.done:
 
@@ -196,7 +192,9 @@ def challenger_agent_loop(agent, env, metrics_acc):
                 print("Agent Factory: Assigning {}.".format(type(agent.current_agent).__name__))
 
             episode += 1
-        
+
+        # select an action
+        action = agent.act(state, reward, agent_done, is_training=True)
         # take a step
         state, reward, agent_done = env.do(action)
 
