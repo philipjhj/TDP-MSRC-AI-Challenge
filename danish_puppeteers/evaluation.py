@@ -72,7 +72,7 @@ class PigChaseEvaluator(object):
         metrics['experimentname'] = experiment_name
 
         try:
-	    
+
             with filepath.open("wb") as f_out:
                 dump(metrics, f_out)
 
@@ -182,6 +182,9 @@ def challenger_agent_loop(agent, env, metrics_acc):
     print("Agent Factory: Assigning {}.".format(type(agent.current_agent).__name__))
 
     while episode < EVAL_EPISODES:
+        # select an action
+        action = agent.act(state, reward, agent_done, is_training=True)
+
         # check if env needs reset
         if env.done:
 
@@ -193,9 +196,10 @@ def challenger_agent_loop(agent, env, metrics_acc):
 
             episode += 1
 
-        # select an action
-        action = agent.act(state, reward, agent_done, is_training=True)
         # take a step
+        if agent_done:
+            agent_done = False
+            action = agent.act(state, reward, agent_done, is_training=True)
         state, reward, agent_done = env.do(action)
 
         if metrics_acc is not None:

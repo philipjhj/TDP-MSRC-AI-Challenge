@@ -81,6 +81,9 @@ def agent_factory(name, role, baseline_agent, clients, max_epochs,
                 obs = env.reset(agent_type)
 
             # take a step
+			if agent_done:
+				agent_done = False
+				action = agent.act(obs, reward, agent_done, is_training=True)
             obs, reward, agent_done = env.do(action)
 
 
@@ -108,6 +111,7 @@ def agent_factory(name, role, baseline_agent, clients, max_epochs,
 
             # select an action
             action = agent.act(obs, reward, agent_done, is_training=True)
+			
             # take a step
             obs, reward, agent_done = env.do(action)
             viz_rewards.append(reward)

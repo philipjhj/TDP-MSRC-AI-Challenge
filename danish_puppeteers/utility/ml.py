@@ -27,8 +27,12 @@ class Features:
         delta_challenger_pig_distance = np.sign(challenger_pig_distance - self.dist_challenger_pig)
         delta_challenger_exit_distance = np.sign(challenger_exit_distance - self.dist_challenger_exit)
 
+        if self.dist_challenger_exit == 0:
+            delta_challenger_exit_distance = -1
+
         # Compliance
         if self.dist_challenger_pig == 0:
+            delta_challenger_pig_distance = -1
             compliance = 1
         else:
             if delta_challenger_pig_distance < 0:

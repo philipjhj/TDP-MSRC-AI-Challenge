@@ -145,8 +145,8 @@ class Brain:
 
         # Data
         self.n_helmets = len(self.helmets) + 1
-        _towards_pig = [-1, 0, 1]
-        _towards_exit = [-1, 0, 1]
+        _pig_emissions = [-1, 0, 1]
+        _exit_emissions = [-1, 0, 1]
 
         # Possible seen emissions from model
         self.possible_emissions = []
@@ -154,8 +154,8 @@ class Brain:
         bad_defaults = []
         good_defaults = []
         for idx, (h, p, e) in enumerate(product(self.helmets,
-                                                _towards_pig,
-                                                _towards_exit)):
+                                                _pig_emissions,
+                                                _exit_emissions)):
             self.possible_emissions.append(idx)
             feature = (h, p, e)
             self.decode_emission[idx] = feature
@@ -186,15 +186,15 @@ class Brain:
 
         # Determine emission-types
         self.emissions_towards_pig = [emission_code for emission_code in self.possible_emissions
-                                      if self.decode_emission[emission_code][1] > 0]
+                                      if self.decode_emission[emission_code][1] < 0]
         self.emissions_away_from_pig = [emission_code for emission_code in self.possible_emissions
-                                        if self.decode_emission[emission_code][1] < 0]
+                                        if self.decode_emission[emission_code][1] > 0]
         self.emissions_indifferent_pig = [emission_code for emission_code in self.possible_emissions
                                           if self.decode_emission[emission_code][1] == 0]
         self.emissions_towards_exit = [emission_code for emission_code in self.possible_emissions
-                                       if self.decode_emission[emission_code][2] > 0]
+                                       if self.decode_emission[emission_code][2] < 0]
         self.emissions_away_from_exit = [emission_code for emission_code in self.possible_emissions
-                                         if self.decode_emission[emission_code][2] < 0]
+                                         if self.decode_emission[emission_code][2] > 0]
         self.emissions_indifferent_exit = [emission_code for emission_code in self.possible_emissions
                                            if self.decode_emission[emission_code][2] == 0]
 
@@ -287,19 +287,21 @@ class Brain:
         prob_indifferent_exit = np.dot(sum([self.markov_model.emissionprob_[:, idx]
                                             for idx in self.emissions_indifferent_exit]), prop_state)
         
-	indifferent_ratio_=1
-        bad_or_neutral = prob_away_from_pig+(1-indifferent_ratio_)*prob_indifferent_pig
-	good = prob_towards_pig+indifferent_ratio_*prob_indifferent_pig
+        indifferent_ratio_ = 0
+        bad_or_neutral = prob_away_from_pig + (1 - indifferent_ratio_) * prob_indifferent_pig
+        good = prob_towards_pig + indifferent_ratio_ * prob_indifferent_pig
         
         if verbose:
             #print("Chellender state: {}".format(prop_state))
             print("Challenger strategy: good {:.2%}, bad-or-neutral {:.2%}".format(good,
-                                                                                bad_or_neutral))
+                                                                                   bad_or_neutral))
 
         # Determine strategy
-        if bad_or_neutral > good:
+        if good < 0.25:
+            print("   Choosing random walker.")
             challenger_strategy = Strategies.random_walker
         else:
+            print("   Choosing cooperative.")
             challenger_strategy = Strategies.naive_cooperative
 
         return challenger_strategy

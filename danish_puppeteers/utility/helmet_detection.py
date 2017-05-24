@@ -20,32 +20,22 @@ class HelmetDetector:
     Very domain-specific and trained on data from this game.
     Uses an SVM for classifying helmets and can only detect the four helmet found in the pig-chase environment. 
     """
+
     def __init__(self, retrain=False):
         self.hats = list(range(4))
         self.classifier = None
         self.helmet_probabilities = np.ones(4)
 
         # Get base-sky
-	print('********************************')
-	print(os.getcwd())
-	print('********************************')
-	for val in Paths.helmet_data.glob('*.p'):
-	    print('********************************')
-	    print('********************************')
-	    print('********************************')
-	    print(val)
-	    print('********************************')
-	    print('********************************')
-	    print('********************************')
-	print('********************************')
-        path = Path(Paths.helmet_data, "base_sky.p")
-        (_, _, _), _, _, frame = pickle.load(path.open("rb"))
-        self.base_frame = self.to_matrix(frame)
-        self.base_sky = self.get_sky(frame)
+        for val in Paths.helmet_data.glob('*.p'):
+            path = Path(Paths.helmet_data, "base_sky.p")
+            (_, _, _), _, _, frame = pickle.load(path.open("rb"))
+            self.base_frame = self.to_matrix(frame)
+            self.base_sky = self.get_sky(frame)
 
-        # If set to train
-        if retrain:
-            self.train_from_path()
+            # If set to train
+            if retrain:
+                self.train_from_path()
 
     def reset(self):
         """
@@ -252,8 +242,6 @@ class HelmetDetector:
         return current_challenger, self.helmet_probabilities, decision_made
 
 
-
-
 if __name__ == "__main__":
 
     ################################################################################################
@@ -331,4 +319,3 @@ if __name__ == "__main__":
     else:
         ax = plt.subplot(2, 2, 4)  # type: plt.Axes
         ax.cla()
-
